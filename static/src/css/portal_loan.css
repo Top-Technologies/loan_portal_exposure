@@ -1,0 +1,32 @@
+/* Loan Portal Exposure CSS */
+
+.loan-type-card {
+    transition: all 0.2s ease-in-out;
+    border-radius: 10px;
+    border: 2px solid #e2e8f0;
+    cursor: pointer;
+    position: relative;
+    background-color: #ffffff;
+}
+
+.loan-type-card:hover {
+    border-color: #94a3b8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.loan-type-card.card-advance.active {
+    border-color: #2563eb !important;
+    background-color: #eff6ff !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2) !important;
+}
+
+.loan-type-card.card-high.active {
+    border-color: #d97706 !important;
+    background-color: #fffbeb !important;
+    box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.2) !important;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}

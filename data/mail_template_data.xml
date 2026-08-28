@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- 1. Notification to Farm Manager on Advance Salary Submission -->
+        <record id="email_template_loan_submitted_farm_manager" model="mail.template">
+            <field name="name">Employee Loan: Advance Salary (Farm Manager Notification)</field>
+            <field name="model_id" ref="model_hr_loan"/>
+            <field name="subject">New Advance Salary Loan Request: {{ object.employee_id.name }} ({{ object.name }})</field>
+            <field name="partner_to">{{ (object.farm_manager_id.user_id.partner_id.id or object.farm_manager_id.work_contact_id.id or '') }}</field>
+            <field name="body_html" type="html">
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <h2 style="color: #1e293b; margin-top: 0;">Advance Salary Loan Request</h2>
+                    <p style="color: #475569;">Hello,</p>
+                    <p style="color: #475569;">
+                        <strong><t t-out="object.employee_id.name"/></strong> has requested an <strong>Advance One Month Salary Loan</strong> requiring your review and approval.
+                    </p>
+                    <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+                        <p style="margin: 5px 0;"><strong>Reference:</strong> <t t-out="object.name"/></p>
+                        <p style="margin: 5px 0;"><strong>Employee:</strong> <t t-out="object.employee_id.name"/></p>
+                        <p style="margin: 5px 0;"><strong>Farm:</strong> <t t-out="object.farm_id.name or 'Assigned Farm'"/></p>
+                        <p style="margin: 5px 0;"><strong>Requested Amount:</strong> <strong style="color: #2563eb;"><t t-out="object.loan_amount"/> <t t-out="object.currency_id.symbol"/></strong></p>
+                        <t t-if="object.reason">
+                            <p style="margin: 5px 0;"><strong>Reason:</strong> <t t-out="object.reason"/></p>
+                        </t>
+                    </div>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a t-attf-href="/my/loans/{{ object.id }}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                            Review &amp; Approve on Portal
+                        </a>
+                    </div>
+                    <p style="color: #94a3b8; font-size: 12px; margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+                        Automated notification from Employee Loans Portal.
+                    </p>
+                </div>
+            </field>
+        </record>
+
+        <!-- 2. Notification to GM on High Amount Loan Submission -->
+        <record id="email_template_loan_submitted_gm" model="mail.template">
+            <field name="name">Employee Loan: High Amount (GM Notification)</field>
+            <field name="model_id" ref="model_hr_loan"/>
+            <field name="subject">High Monetary Loan Request: {{ object.employee_id.name }} ({{ object.loan_amount }} {{ object.currency_id.symbol }})</field>
+            <field name="partner_to">{{ (object.company_id.loan_gm_user_id.partner_id.id or '') }}</field>
+            <field name="body_html" type="html">
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <h2 style="color: #1e293b; margin-top: 0;">High Monetary Loan Approval Request</h2>
+                    <p style="color: #475569;">Hello General Manager,</p>
+                    <p style="color: #475569;">
+                        A new <strong>High Monetary Amount Loan</strong> has been submitted by <strong><t t-out="object.employee_id.name"/></strong> requiring your authorization.
+                    </p>
+                    <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+                        <p style="margin: 5px 0;"><strong>Reference:</strong> <t t-out="object.name"/></p>
+                        <p style="margin: 5px 0;"><strong>Employee:</strong> <t t-out="object.employee_id.name"/></p>
+                        <p style="margin: 5px 0;"><strong>Requested Amount:</strong> <strong style="color: #d97706; font-size: 16px;"><t t-out="object.loan_amount"/> <t t-out="object.currency_id.symbol"/></strong></p>
+                        <p style="margin: 5px 0;"><strong>Reason:</strong> <t t-out="object.reason"/></p>
+                    </div>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a t-attf-href="/my/loans/{{ object.id }}" style="background-color: #d97706; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                            Authorize Loan in Portal / Approvals
+                        </a>
+                    </div>
+                </div>
+            </field>
+        </record>
+
+        <!-- 3. Submission Confirmation to Employee -->
+        <record id="email_template_loan_submitted_employee" model="mail.template">
+            <field name="name">Employee Loan: Submission Acknowledgment</field>
+            <field name="model_id" ref="model_hr_loan"/>
+            <field name="subject">Loan Application Submitted: {{ object.name }}</field>
+            <field name="partner_to">{{ (object.employee_id.user_id.partner_id.id or object.employee_id.work_contact_id.id or '') }}</field>
+            <field name="body_html" type="html">
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <h2 style="color: #1e293b; margin-top: 0;">Loan Application Received</h2>
+                    <p style="color: #475569;">Hello <t t-out="object.employee_id.name"/>,</p>
+                    <p style="color: #475569;">
+                        Your loan application <strong><t t-out="object.name"/></strong> for <strong><t t-out="object.loan_amount"/> <t t-out="object.currency_id.symbol"/></strong> has been successfully submitted and forwarded to the designated approver.
+                    </p>
+                    <div style="text-align: center; margin: 25px 0;">
+                        <a t-attf-href="/my/loans/{{ object.id }}" style="background-color: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                            Track Loan Status
+                        </a>
+                    </div>
+                </div>
+            </field>
+        </record>
+
+        <!-- 4. Mandatory Notification to HR and Finance Managers on GM Approval -->
+        <record id="email_template_loan_gm_approved_hr_finance" model="mail.template">
+            <field name="name">Employee Loan: GM Approved (HR &amp; Finance Notification)</field>
+            <field name="model_id" ref="model_hr_loan"/>
+            <field name="subject">High Monetary Loan Approved by GM: {{ object.employee_id.name }} ({{ object.loan_amount }} {{ object.currency_id.symbol }})</field>
+            <field name="partner_to">{{ (object.company_id.loan_hr_manager_id.partner_id.id or '') }},{{ (object.company_id.loan_finance_manager_id.partner_id.id or '') }}</field>
+            <field name="body_html" type="html">
+                <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <div style="text-align: center; margin-bottom: 15px;">
+                        <span style="background-color: #dcfce7; color: #166534; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 13px;">
+                            ✓ Authorized by General Manager
+                        </span>
+                    </div>
+                    <h2 style="color: #1e293b; text-align: center; margin-top: 5px;">High Monetary Loan Approved</h2>
+                    <p style="color: #475569;">Hello HR &amp; Finance Management,</p>
+                    <p style="color: #475569;">
+                        The General Manager has officially reviewed and <strong>approved</strong> the following High Monetary Amount Loan application:
+                    </p>
+                    <div style="background-color: #f0fdf4; padding: 18px; border-radius: 6px; margin: 20px 0; border: 1px solid #bbf7d0;">
+                        <table style="width: 100%; font-size: 14px; color: #1e293b;">
+                            <tr>
+                                <td style="padding: 4px 0;"><strong>Loan Reference:</strong></td>
+                                <td style="padding: 4px 0;"><t t-out="object.name"/></td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0;"><strong>Employee Name:</strong></td>
+                                <td style="padding: 4px 0;"><strong><t t-out="object.employee_id.name"/></strong> (ID: <t t-out="object.employee_id.fms_employee_id or '-'"/>)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0;"><strong>Approved Amount:</strong></td>
+                                <td style="padding: 4px 0; color: #16a34a; font-size: 16px; font-weight: bold;"><t t-out="object.loan_amount"/> <t t-out="object.currency_id.symbol"/></td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0;"><strong>Disbursement Date:</strong></td>
+                                <td style="padding: 4px 0;"><t t-out="object.payment_date"/></td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0;"><strong>Purpose:</strong></td>
+                                <td style="padding: 4px 0;"><t t-out="object.reason"/></td>
+                            </tr>
+                        </table>
+                    </div>
+                    <p style="color: #475569; font-size: 13px;">
+                        <strong>Action Required:</strong> Finance and HR teams may proceed with the payment disbursement and record keeping.
+                    </p>
+                    <div style="text-align: center; margin: 25px 0;">
+                        <a t-attf-href="/odoo/hr-loans/{{ object.id }}" style="background-color: #16a34a; color: white; padding: 10px 22px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                            View in Odoo Backend
+                        </a>
+                    </div>
+                </div>
+            </field>
+        </record>
+
+        <!-- 5. Notification to Employee on Approval -->
+        <record id="email_template_loan_approved_employee" model="mail.template">
+            <field name="name">Employee Loan: Approved (Employee Notification)</field>
+            <field name="model_id" ref="model_hr_loan"/>
+            <field name="subject">Loan Approved: {{ object.name }} ({{ object.loan_amount }} {{ object.currency_id.symbol }})</field>
+            <field name="partner_to">{{ (object.employee_id.user_id.partner_id.id or object.employee_id.work_contact_id.id or '') }}</field>
+            <field name="body_html" type="html">
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <div style="text-align: center; margin-bottom: 15px;">
+                        <span style="background-color: #dcfce7; color: #166534; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 13px;">
+                            ✓ Approved
+                        </span>
+                    </div>
+                    <h2 style="color: #1e293b; text-align: center; margin-top: 5px;">Your Loan Has Been Approved!</h2>
+                    <p style="color: #475569;">Hello <t t-out="object.employee_id.name"/>,</p>
+                    <p style="color: #475569;">
+                        We are pleased to inform you that your loan application <strong><t t-out="object.name"/></strong> for <strong><t t-out="object.loan_amount"/> <t t-out="object.currency_id.symbol"/></strong> has been officially approved.
+                    </p>
+                    <div style="background-color: #f0fdf4; padding: 15px; border-radius: 6px; margin: 20px 0; border: 1px solid #bbf7d0;">
+                        <p style="margin: 5px 0;"><strong>Approved Amount:</strong> <strong style="color: #16a34a;"><t t-out="object.loan_amount"/> <t t-out="object.currency_id.symbol"/></strong></p>
+                    </div>
+                    <div style="text-align: center; margin: 25px 0;">
+                        <a t-attf-href="/my/loans/{{ object.id }}" style="background-color: #16a34a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                            View in Portal
+                        </a>
+                    </div>
+                </div>
+            </field>
+        </record>
+
+        <!-- 6. Notification to Employee on Rejection -->
+        <record id="email_template_loan_rejected_employee" model="mail.template">
+            <field name="name">Employee Loan: Rejected (Employee Notification)</field>
+            <field name="model_id" ref="model_hr_loan"/>
+            <field name="subject">Loan Application Rejected: {{ object.name }}</field>
+            <field name="partner_to">{{ (object.employee_id.user_id.partner_id.id or object.employee_id.work_contact_id.id or '') }}</field>
+            <field name="body_html" type="html">
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <div style="text-align: center; margin-bottom: 15px;">
+                        <span style="background-color: #fee2e2; color: #991b1b; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 13px;">
+                            ✗ Rejected
+                        </span>
+                    </div>
+                    <h2 style="color: #1e293b; text-align: center; margin-top: 5px;">Loan Request Refused</h2>
+                    <p style="color: #475569;">Hello <t t-out="object.employee_id.name"/>,</p>
+                    <p style="color: #475569;">
+                        Your loan application <strong><t t-out="object.name"/></strong> has been rejected.
+                    </p>
+                    <div style="background-color: #fef2f2; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #ef4444;">
+                        <p style="margin: 5px 0; color: #991b1b;"><strong>Reason:</strong></p>
+                        <p style="margin: 5px 0; color: #7f1d1d;"><t t-out="object.rejection_reason or 'No reason provided.'"/></p>
+                    </div>
+                    <div style="text-align: center; margin: 25px 0;">
+                        <a t-attf-href="/my/loans/{{ object.id }}" style="background-color: #64748b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                            View in Portal
+                        </a>
+                    </div>
+                </div>
+            </field>
+        </record>
+
+    </data>
+</odoo>

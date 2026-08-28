@@ -1,0 +1,860 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================================================================= -->
+    <!-- 1. Portal Home Entries & Breadcrumbs                              -->
+    <!-- ================================================================= -->
+
+    <template id="portal_my_home_loans" name="Portal My Home : Loans" inherit_id="portal.portal_my_home" priority="45">
+        <xpath expr="//div[hasclass('o_portal_docs')]" position="inside">
+            <t t-call="portal.portal_docs_entry">
+                <t t-set="icon" t-value="'/loan_portal_exposure/static/src/img/money.svg'"/>
+                <t t-set="title">My Loans</t>
+                <t t-set="text">Apply for salary advances and loans</t>
+                <t t-set="url" t-value="'/my/loans'"/>
+                <t t-set="config_card" t-value="True"/>
+                <t t-set="placeholder_count" t-value="'loans_count'"/>
+            </t>
+            <t t-if="loans_to_approve_count is not None and loans_to_approve_count &gt; 0">
+                <t t-call="portal.portal_docs_entry">
+                    <t t-set="icon" t-value="'/loan_portal_exposure/static/src/img/loan-approval.svg'"/>
+                    <t t-set="title">Loans to Approve</t>
+                    <t t-set="text">Review employee loan applications</t>
+                    <t t-set="url" t-value="'/my/loans/to_approve'"/>
+                    <t t-set="count" t-value="loans_to_approve_count"/>
+                    <t t-set="config_card" t-value="True"/>
+                </t>
+            </t>
+        </xpath>
+    </template>
+
+    <template id="portal_breadcrumbs_loans" name="Portal Breadcrumbs : Loans" inherit_id="portal.portal_breadcrumbs" priority="45">
+        <xpath expr="//ol[hasclass('o_portal_submenu')]" position="inside">
+            <li t-if="page_name == 'loan_dashboard' or page_name == 'loan_detail' or page_name == 'loan_new'" class="breadcrumb-item">
+                <a t-if="page_name != 'loan_dashboard'" href="/my/loans">My Loans</a>
+                <span t-else="">My Loans</span>
+            </li>
+            <li t-if="page_name == 'loan_new'" class="breadcrumb-item active">
+                <span>New Loan Request</span>
+            </li>
+            <li t-if="page_name == 'loan_detail'" class="breadcrumb-item active">
+                <span t-esc="loan.name"/>
+            </li>
+            <li t-if="page_name == 'loan_to_approve'" class="breadcrumb-item active">
+                <span>Loans to Approve</span>
+            </li>
+        </xpath>
+    </template>
+
+    <!-- Warning for non-approvers -->
+    <template id="portal_not_a_loan_approver" name="Not a Loan Approver Warning">
+        <t t-call="portal.portal_layout">
+            <div class="container py-5">
+                <div class="alert alert-info text-center shadow-sm p-4 rounded-3" role="alert">
+                    <i class="fa fa-info-circle fa-3x text-info mb-3 d-block"/>
+                    <h4 class="alert-heading fw-bold">No Loan Approvals Assigned</h4>
+                    <p class="mb-0">You currently do not have any pending loan approval responsibilities.</p>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- ================================================================= -->
+    <!-- 2. My Loans Dashboard                                             -->
+    <!-- ================================================================= -->
+
+    <template id="portal_my_loans_dashboard" name="My Loans Dashboard">
+        <t t-call="portal.portal_layout">
+            <t t-set="breadcrumbs_searchbar" t-value="True"/>
+
+            <div class="container-fluid px-0 py-3">
+
+                <!-- Header & Actions -->
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+                    <div>
+                        <h2 class="fw-bold mb-1 text-primary">
+                            <i class="fa fa-money me-2"/>Employee Loans Portal
+                        </h2>
+                        <p class="text-muted mb-0">Apply for advance salary loans or high monetary amount loans</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <t t-if="can_approve">
+                            <a href="/my/loans/to_approve" class="btn btn-outline-primary d-flex align-items-center gap-2">
+                                <i class="fa fa-check-square-o"/>
+                                <span>Approvals Dashboard</span>
+                            </a>
+                        </t>
+                        <a href="/my/loans/new" class="btn btn-primary d-flex align-items-center gap-2 shadow-sm">
+                            <i class="fa fa-plus-circle"/>
+                            <span>Apply for Loan</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- KPI Cards -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-4">
+                        <div class="card border-0 shadow-sm rounded-3 bg-gradient bg-primary text-white p-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="text-white-50 small text-uppercase fw-bold">Active Approved Loans</div>
+                                    <div class="display-6 fw-bold my-1"><t t-esc="active_loans_count"/></div>
+                                    <div class="small text-white-50">Currently active</div>
+                                </div>
+                                <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                                    <i class="fa fa-handshake-o fa-2x text-white"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="card border-0 shadow-sm rounded-3 bg-white p-3 border-start border-success border-4">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="text-muted small text-uppercase fw-bold">Total Approved Amount</div>
+                                    <div class="display-6 fw-bold my-1 text-success">
+                                        <t t-esc="total_active_amount"/> <span class="fs-6"><t t-esc="currency.symbol"/></span>
+                                    </div>
+                                    <div class="small text-muted">Disbursed loans</div>
+                                </div>
+                                <div class="bg-success bg-opacity-10 rounded-circle p-3">
+                                    <i class="fa fa-dollar fa-2x text-success"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="card border-0 shadow-sm rounded-3 bg-white p-3 border-start border-warning border-4">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="text-muted small text-uppercase fw-bold">Pending Review</div>
+                                    <div class="display-6 fw-bold my-1 text-warning"><t t-esc="pending_count"/></div>
+                                    <div class="small text-muted">Awaiting Farm Manager or GM</div>
+                                </div>
+                                <div class="bg-warning bg-opacity-10 rounded-circle p-3">
+                                    <i class="fa fa-hourglass-half fa-2x text-warning"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loans Table -->
+                <div class="card border-0 shadow-sm rounded-3">
+                    <div class="card-header bg-white py-3 border-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+                        <h5 class="mb-0 fw-bold text-secondary">
+                            <i class="fa fa-history me-2 text-primary"/>Loan Applications History
+                        </h5>
+                        <div class="d-flex gap-2 align-items-center">
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                    <i class="fa fa-filter me-1"/> Filter: <span t-esc="filters[filterby]['label']"/>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <t t-foreach="filters" t-as="f_key">
+                                        <li>
+                                            <a class="dropdown-item" t-attf-href="/my/loans?filterby={{ f_key }}&amp;sortby={{ sortby }}" t-esc="filters[f_key]['label']"/>
+                                        </li>
+                                    </t>
+                                </ul>
+                            </div>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                    <i class="fa fa-sort me-1"/> Sort: <span t-esc="sortings[sortby]['label']"/>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <t t-foreach="sortings" t-as="s_key">
+                                        <li>
+                                            <a class="dropdown-item" t-attf-href="/my/loans?sortby={{ s_key }}&amp;filterby={{ filterby }}" t-esc="sortings[s_key]['label']"/>
+                                        </li>
+                                    </t>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-body p-0">
+                        <t t-if="not loans">
+                            <div class="text-center py-5 text-muted">
+                                <i class="fa fa-folder-open-o fa-3x mb-3 text-secondary"/>
+                                <p class="mb-2">No loan applications found.</p>
+                                <a href="/my/loans/new" class="btn btn-sm btn-primary">Apply for your First Loan</a>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Reference</th>
+                                            <th>Category</th>
+                                            <th>Amount</th>
+                                            <th>Date</th>
+                                            <th>Status</th>
+                                            <th class="text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <t t-foreach="loans" t-as="l">
+                                            <tr>
+                                                <td>
+                                                    <span class="fw-bold font-monospace text-dark" t-esc="l.name"/>
+                                                </td>
+                                                <td>
+                                                    <t t-if="l.loan_type == 'advance_salary'">
+                                                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">
+                                                            <i class="fa fa-bolt me-1"/>Advance Salary
+                                                        </span>
+                                                    </t>
+                                                    <t t-else="">
+                                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                                                            <i class="fa fa-university me-1"/>High Amount
+                                                        </span>
+                                                    </t>
+                                                </td>
+                                                <td>
+                                                    <strong class="text-dark"><t t-esc="l.loan_amount"/> <t t-esc="l.currency_id.symbol"/></strong>
+                                                </td>
+                                                <td>
+                                                    <span class="text-muted"><t t-esc="l.payment_date"/></span>
+                                                </td>
+                                                <td>
+                                                    <t t-if="l.state == 'approved'">
+                                                        <span class="badge rounded-pill bg-success px-3 py-1">Approved</span>
+                                                    </t>
+                                                    <t t-elif="l.state == 'waiting_farm_manager'">
+                                                        <span class="badge rounded-pill bg-warning text-dark px-3 py-1">Waiting Farm Manager</span>
+                                                    </t>
+                                                    <t t-elif="l.state == 'waiting_gm'">
+                                                        <span class="badge rounded-pill bg-warning text-dark px-3 py-1">Waiting GM Approval</span>
+                                                    </t>
+                                                    <t t-elif="l.state == 'rejected'">
+                                                        <span class="badge rounded-pill bg-danger px-3 py-1">Rejected</span>
+                                                    </t>
+                                                    <t t-elif="l.state == 'cancelled'">
+                                                        <span class="badge rounded-pill bg-secondary px-3 py-1">Cancelled</span>
+                                                    </t>
+                                                    <t t-else="">
+                                                        <span class="badge rounded-pill bg-light text-dark border px-3 py-1" t-esc="l.state"/>
+                                                    </t>
+                                                </td>
+                                                <td class="text-end">
+                                                    <a t-attf-href="/my/loans/{{ l.id }}" class="btn btn-sm btn-outline-primary" title="View Details">
+                                                        <i class="fa fa-eye"/> Details
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </t>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div t-if="pager['page_count'] &gt; 1" class="card-footer bg-white d-flex justify-content-center py-3">
+                        <t t-call="portal.pager"/>
+                    </div>
+                </div>
+
+            </div>
+        </t>
+    </template>
+
+    <!-- ================================================================= -->
+    <!-- 3. Apply for New Loan Form                                        -->
+    <!-- ================================================================= -->
+
+    <template id="portal_my_loans_new" name="Apply for Loan Form">
+        <t t-call="portal.portal_layout">
+            <div class="container py-4">
+
+                <div class="row justify-content-center">
+                    <div class="col-12 col-lg-8">
+
+                        <div class="card border-0 shadow-sm rounded-3">
+                            <div class="card-header bg-primary text-white py-3">
+                                <h4 class="mb-0 fw-bold">
+                                    <i class="fa fa-hand-holding-usd me-2"/>Apply for Employee Loan
+                                </h4>
+                            </div>
+
+                            <div class="card-body p-4">
+
+                                <!-- Alert Messages -->
+                                <t t-if="errors">
+                                    <div class="alert alert-danger shadow-sm rounded-3 mb-4">
+                                        <h6 class="fw-bold mb-2"><i class="fa fa-exclamation-circle me-1"/> Please fix the following errors:</h6>
+                                        <ul class="mb-0 ps-3">
+                                            <t t-foreach="errors" t-as="err">
+                                                <li t-esc="err"/>
+                                            </t>
+                                        </ul>
+                                    </div>
+                                </t>
+
+                                <form action="/my/loans/new" method="post" enctype="multipart/form-data" id="loan_application_form">
+                                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+
+                                    <!-- 1. Loan Category Selection -->
+                                    <div class="mb-4">
+                                        <label class="form-label fw-bold">Select Loan Category <span class="text-danger">*</span></label>
+                                        <div class="row g-3">
+                                            <div class="col-12 col-md-6">
+                                                <div class="card p-3 h-100 loan-type-card card-advance active" id="card_advance_salary" onclick="if(window.setLoanType) window.setLoanType('advance_salary');">
+                                                    <div class="d-flex align-items-center justify-content-between mb-2">
+                                                        <div class="form-check mb-0">
+                                                            <input class="form-check-input" type="radio" name="loan_type" id="loan_type_advance" value="advance_salary" checked="checked" onchange="if(window.setLoanType) window.setLoanType('advance_salary');"/>
+                                                            <label class="form-check-label fw-bold text-primary fs-6" for="loan_type_advance">
+                                                                Advance 1-Month Salary
+                                                            </label>
+                                                        </div>
+                                                        <span id="badge_selected_advance" class="badge bg-primary px-2 py-1"><i class="fa fa-check-circle me-1"/>Selected</span>
+                                                    </div>
+                                                    <p class="small text-muted mb-0">
+                                                        Short-term emergency advance of 1 month salary. Approved by your <strong>Farm Manager</strong>.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <div class="card p-3 h-100 loan-type-card card-high" id="card_high_amount" onclick="if(window.setLoanType) window.setLoanType('high_amount');">
+                                                    <div class="d-flex align-items-center justify-content-between mb-2">
+                                                        <div class="form-check mb-0">
+                                                            <input class="form-check-input" type="radio" name="loan_type" id="loan_type_high" value="high_amount" onchange="if(window.setLoanType) window.setLoanType('high_amount');"/>
+                                                            <label class="form-check-label fw-bold text-warning-emphasis fs-6" for="loan_type_high">
+                                                                High Monetary Amount
+                                                            </label>
+                                                        </div>
+                                                        <span id="badge_selected_high" class="badge bg-warning text-dark px-2 py-1" style="display: none;"><i class="fa fa-check-circle me-1"/>Selected</span>
+                                                    </div>
+                                                    <p class="small text-muted mb-0">
+                                                        Higher loan amount. Authorized directly by the <strong>General Manager (GM)</strong>.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Advance Salary Info Banner (Visible for Advance Salary) -->
+                                    <div id="advance_salary_info_box" class="alert alert-info py-3 px-3 rounded-3 mb-4">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i class="fa fa-info-circle fa-lg text-info"/>
+                                            <div>
+                                                <strong>Advance 1-Month Salary Loan:</strong> The requested amount is automatically set to your full 1-month salary and forwarded to your Farm Manager.
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 2. Loan Amount Input (Visible ONLY for High Monetary Loan) -->
+                                    <div class="mb-3" id="loan_amount_container" style="display: none;">
+                                        <label for="loan_amount" class="form-label fw-bold">Requested Loan Amount (<t t-esc="currency.symbol"/>) <span class="text-danger">*</span></label>
+                                        <div class="input-group input-group-lg">
+                                            <span class="input-group-text bg-light fw-bold"><t t-esc="currency.symbol"/></span>
+                                            <input type="number" step="0.01" class="form-control fw-bold" id="loan_amount" name="loan_amount"
+                                                   t-att-value="post.get('loan_amount', '')" placeholder="Enter loan amount..."/>
+                                        </div>
+                                    </div>
+
+                                    <!-- 3. Preferred Date -->
+                                    <div class="mb-3">
+                                        <label for="payment_date" class="form-label fw-bold">Preferred Disbursement Date</label>
+                                        <input type="date" class="form-control" id="payment_date" name="payment_date" t-att-value="post.get('payment_date', today)"/>
+                                    </div>
+
+                                    <!-- 4. Reason / Justification -->
+                                    <div class="mb-3">
+                                        <label for="reason" class="form-label fw-bold">Reason / Purpose of Loan <span class="text-danger">*</span></label>
+                                        <textarea class="form-control" id="reason" name="reason" rows="3" required="required" placeholder="Explain the purpose for this loan request..."><t t-esc="post.get('reason', '')"/></textarea>
+                                    </div>
+
+                                    <!-- 5. Attachment / Document -->
+                                    <div class="mb-4">
+                                        <label for="attachment" class="form-label fw-bold">Supporting Documents (Optional)</label>
+                                        <input class="form-control" type="file" id="attachment" name="attachment" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"/>
+                                        <div class="form-text text-muted small">Upload bills, receipts, or justification document (Max 10MB).</div>
+                                    </div>
+
+                                    <!-- 6. Approval Routing Preview -->
+                                    <div class="alert alert-light border py-2 px-3 small rounded-3 mb-4" id="routing_preview_box">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i class="fa fa-sitemap text-primary fa-lg"/>
+                                            <div id="routing_text_advance">
+                                                <strong>Approval Route:</strong> 
+                                                <span>Farm Manager: <strong t-esc="farm_manager.name or 'Assigned Farm Manager'"/></span>
+                                            </div>
+                                            <div id="routing_text_high" style="display: none;">
+                                                <strong>Approval Route:</strong> 
+                                                <span>Direct Authorization: <strong>General Manager (GM)</strong></span> &amp;rarr; <span>Notification to <strong>HR &amp; Finance Managers</strong></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Actions -->
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <a href="/my/loans" class="btn btn-outline-secondary">
+                                            <i class="fa fa-arrow-left me-1"/> Cancel
+                                        </a>
+                                        <button type="submit" class="btn btn-primary px-4 py-2 fw-bold shadow-sm">
+                                            <i class="fa fa-paper-plane me-1"/> Submit Loan Application
+                                        </button>
+                                    </div>
+
+                                </form>
+
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </t>
+    </template>
+
+    <!-- ================================================================= -->
+    <!-- 4. Single Loan Detail View & Chatter                              -->
+    <!-- ================================================================= -->
+
+    <template id="portal_my_loan_detail" name="Loan Request Details">
+        <t t-call="portal.portal_layout">
+            <div class="container py-4">
+
+                <!-- Submission Banner -->
+                <t t-if="submitted">
+                    <div class="alert alert-success alert-dismissible fade show shadow-sm rounded-3 mb-4" role="alert">
+                        <h5 class="alert-heading fw-bold mb-1"><i class="fa fa-check-circle me-2"/>Loan Application Submitted Successfully!</h5>
+                        <p class="mb-0">Your loan request <strong t-esc="loan.name"/> has been dispatched to the designated approver.</p>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"/>
+                    </div>
+                </t>
+
+                <div class="row g-4">
+                    <div class="col-12 col-lg-8">
+
+                        <div class="card border-0 shadow-sm rounded-3 mb-4">
+                            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-0 fw-bold text-primary">
+                                        <i class="fa fa-file-text-o me-2"/><t t-esc="loan.name"/>
+                                    </h5>
+                                    <small class="text-muted" t-esc="dict(loan._fields['loan_type'].selection).get(loan.loan_type)"/>
+                                </div>
+                                <t t-if="loan.state == 'approved'">
+                                    <span class="badge bg-success fs-6 px-3 py-2">Approved</span>
+                                </t>
+                                <t t-elif="loan.state == 'waiting_farm_manager'">
+                                    <span class="badge bg-warning text-dark fs-6 px-3 py-2">Waiting Farm Manager</span>
+                                </t>
+                                <t t-elif="loan.state == 'waiting_gm'">
+                                    <span class="badge bg-warning text-dark fs-6 px-3 py-2">Waiting GM Approval</span>
+                                </t>
+                                <t t-elif="loan.state == 'rejected'">
+                                    <span class="badge bg-danger fs-6 px-3 py-2">Rejected</span>
+                                </t>
+                                <t t-elif="loan.state == 'cancelled'">
+                                    <span class="badge bg-secondary fs-6 px-3 py-2">Cancelled</span>
+                                </t>
+                            </div>
+
+                            <div class="card-body p-4">
+
+                                <!-- Progress Stepper -->
+                                <div class="stepper-wrapper mb-4">
+                                    <div class="stepper-item completed">
+                                        <div class="step-counter"><i class="fa fa-check"/></div>
+                                        <div class="step-name">Submitted</div>
+                                    </div>
+                                    <div t-attf-class="stepper-item {{ 'completed' if loan.state == 'approved' else ('active' if loan.state in ('waiting_farm_manager', 'waiting_gm') else '') }}">
+                                        <div class="step-counter">
+                                            <i t-if="loan.state == 'approved'" class="fa fa-check"/>
+                                            <span t-else="">2</span>
+                                        </div>
+                                        <div class="step-name">
+                                            <t t-if="loan.loan_type == 'advance_salary'">Farm Manager Review</t>
+                                            <t t-else="">GM Authorization</t>
+                                        </div>
+                                    </div>
+                                    <div t-attf-class="stepper-item {{ 'completed' if loan.state == 'approved' else '' }}">
+                                        <div class="step-counter">
+                                            <i t-if="loan.state == 'approved'" class="fa fa-check"/>
+                                            <span t-else="">3</span>
+                                        </div>
+                                        <div class="step-name">Disbursement</div>
+                                    </div>
+                                </div>
+
+                                <!-- Attributes Grid -->
+                                <div class="row g-3 mb-4">
+                                    <div class="col-6 col-md-4">
+                                        <div class="text-muted small">Employee</div>
+                                        <div class="fw-bold text-dark" t-esc="loan.employee_id.name"/>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="text-muted small">Requested Amount</div>
+                                        <div class="fw-bold fs-5 text-primary">
+                                            <t t-esc="loan.loan_amount"/> <t t-esc="loan.currency_id.symbol"/>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="text-muted small">Disbursement Date</div>
+                                        <div class="fw-bold text-dark"><t t-esc="loan.payment_date"/></div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="text-muted small">Assigned Farm</div>
+                                        <div class="fw-bold text-dark"><t t-esc="loan.farm_id.name or '-'"/></div>
+                                    </div>
+                                </div>
+
+                                <!-- Reason -->
+                                <div class="mb-4">
+                                    <div class="text-muted small mb-1">Reason / Purpose:</div>
+                                    <div class="p-3 bg-light rounded-3 text-dark">
+                                        <t t-esc="loan.reason or 'No reason provided.'"/>
+                                    </div>
+                                </div>
+
+                                <!-- Rejection Reason -->
+                                <t t-if="loan.state == 'rejected'">
+                                    <div class="alert alert-danger rounded-3 mb-4">
+                                        <h6 class="fw-bold mb-1"><i class="fa fa-times-circle me-1"/> Rejection Reason:</h6>
+                                        <p class="mb-0" t-esc="loan.rejection_reason or 'No reason provided.'"/>
+                                    </div>
+                                </t>
+
+                                <!-- Attachments -->
+                                <t t-if="loan.attachment_ids">
+                                    <div class="mb-4">
+                                        <div class="text-muted small mb-2">Supporting Documents:</div>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <t t-foreach="loan.attachment_ids" t-as="att">
+                                                <a t-attf-href="/web/content/{{ att.id }}?download=true" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2" target="_blank">
+                                                    <i class="fa fa-file-text-o text-primary"/>
+                                                    <span t-esc="att.name"/>
+                                                    <i class="fa fa-download ms-1"/>
+                                                </a>
+                                            </t>
+                                        </div>
+                                    </div>
+                                </t>
+
+                            </div>
+
+                            <!-- Actions Footer -->
+                            <div class="card-footer bg-light py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                <a href="/my/loans" class="btn btn-outline-secondary">
+                                    <i class="fa fa-arrow-left me-1"/> Back to Loans
+                                </a>
+
+                                <div class="d-flex gap-2">
+                                    <!-- Employee Cancel Option -->
+                                    <t t-if="is_owner and loan.state in ('draft', 'waiting_farm_manager', 'waiting_gm')">
+                                        <form t-attf-action="/my/loans/{{ loan.id }}/cancel" method="post">
+                                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                            <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Are you sure you want to cancel this loan request?');">
+                                                <i class="fa fa-times me-1"/> Cancel Request
+                                            </button>
+                                        </form>
+                                    </t>
+
+                                    <!-- Approver Quick Actions -->
+                                    <t t-if="can_approve and loan.state in ('waiting_farm_manager', 'waiting_gm')">
+                                        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" t-attf-data-bs-target="#loanRejectModal{{ loan.id }}">
+                                            <i class="fa fa-times me-1"/> Reject
+                                        </button>
+                                        <form t-attf-action="/my/loans/{{ loan.id }}/approve" method="post">
+                                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                            <button type="submit" class="btn btn-success fw-bold px-3">
+                                                <i class="fa fa-check me-1"/> Approve Loan
+                                            </button>
+                                        </form>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Chatter -->
+                        <div class="card border-0 shadow-sm rounded-3">
+                            <div class="card-header bg-white py-3 border-bottom">
+                                <h5 class="mb-0 fw-bold text-secondary">
+                                    <i class="fa fa-comments-o me-2 text-primary"/>Communication &amp; Audit Log
+                                </h5>
+                            </div>
+                            <div class="card-body p-4">
+                                <t t-call="portal.message_thread">
+                                    <t t-set="object" t-value="loan"/>
+                                </t>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Right Sidebar -->
+                    <div class="col-12 col-lg-4">
+
+                        <!-- Approver Details -->
+                        <div class="card border-0 shadow-sm rounded-3 mb-4">
+                            <div class="card-header bg-white py-3 border-bottom">
+                                <h6 class="mb-0 fw-bold text-secondary">
+                                    <i class="fa fa-sitemap me-2 text-primary"/>Approval Responsibility
+                                </h6>
+                            </div>
+                            <div class="card-body p-3">
+                                <t t-if="loan.loan_type == 'advance_salary'">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle p-2">
+                                            <i class="fa fa-user-circle fa-lg"/>
+                                        </div>
+                                        <div>
+                                            <div class="text-muted small">Farm Manager</div>
+                                            <div class="fw-bold" t-esc="loan.farm_manager_id.name or 'Farm Manager'"/>
+                                        </div>
+                                    </div>
+                                </t>
+                                <t t-else="">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="bg-warning bg-opacity-10 text-warning rounded-circle p-2">
+                                            <i class="fa fa-star fa-lg"/>
+                                        </div>
+                                        <div>
+                                            <div class="text-muted small">General Manager (GM)</div>
+                                            <div class="fw-bold" t-esc="loan.company_id.loan_gm_user_id.name or 'General Manager'"/>
+                                        </div>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Rejection Modal -->
+                <div class="modal fade" t-attf-id="loanRejectModal{{ loan.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form t-attf-action="/my/loans/{{ loan.id }}/reject" method="post">
+                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <div class="modal-header bg-danger text-white">
+                                    <h5 class="modal-title fw-bold"><i class="fa fa-times-circle me-2"/>Reject Loan Application</h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"/>
+                                </div>
+                                <div class="modal-body p-4">
+                                    <p>Please specify the reason for rejecting loan application <strong><t t-esc="loan.name"/></strong> for <strong><t t-esc="loan.employee_id.name"/></strong>:</p>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Rejection Reason</label>
+                                        <textarea class="form-control" name="rejection_reason" rows="3" required="required" placeholder="Reason for refusal..."></textarea>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" class="btn btn-danger fw-bold">Confirm Rejection</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </t>
+    </template>
+
+    <!-- ================================================================= -->
+    <!-- 5. Loans to Approve (For Farm Managers & GM)                      -->
+    <!-- ================================================================= -->
+
+    <template id="portal_my_loans_to_approve" name="Loans to Approve Dashboard">
+        <t t-call="portal.portal_layout">
+            <t t-set="breadcrumbs_searchbar" t-value="True"/>
+
+            <div class="container-fluid px-0 py-3">
+
+                <!-- Header -->
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+                    <div>
+                        <h2 class="fw-bold mb-1 text-primary">
+                            <i class="fa fa-check-square-o me-2"/>Loan Approvals Management
+                        </h2>
+                        <p class="text-muted mb-0">Review employee loan applications requiring your authorization</p>
+                    </div>
+                    <div>
+                        <a href="/my/loans" class="btn btn-outline-primary">
+                            <i class="fa fa-arrow-left me-1"/> My Personal Loans
+                        </a>
+                    </div>
+                </div>
+
+                <!-- KPI Card -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-6">
+                        <div class="card border-0 shadow-sm rounded-3 bg-gradient bg-warning text-dark p-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="small text-uppercase fw-bold text-dark opacity-75">Pending Authorization</div>
+                                    <div class="display-6 fw-bold my-1"><t t-esc="pending_count"/></div>
+                                    <div class="small opacity-75">Applications awaiting your decision</div>
+                                </div>
+                                <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                                    <i class="fa fa-bell-o fa-2x text-dark"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Applications Table -->
+                <div class="card border-0 shadow-sm rounded-3">
+                    <div class="card-header bg-white py-3 border-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+                        <h5 class="mb-0 fw-bold text-secondary">
+                            <i class="fa fa-list me-2 text-primary"/>Loan Requests
+                        </h5>
+                        <div class="d-flex gap-2 align-items-center">
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                    <i class="fa fa-filter me-1"/> Filter: <span t-esc="filters[filterby]['label']"/>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <t t-foreach="filters" t-as="f_key">
+                                        <li>
+                                            <a class="dropdown-item" t-attf-href="/my/loans/to_approve?filterby={{ f_key }}&amp;sortby={{ sortby }}" t-esc="filters[f_key]['label']"/>
+                                        </li>
+                                    </t>
+                                </ul>
+                            </div>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                    <i class="fa fa-sort me-1"/> Sort: <span t-esc="sortings[sortby]['label']"/>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <t t-foreach="sortings" t-as="s_key">
+                                        <li>
+                                            <a class="dropdown-item" t-attf-href="/my/loans/to_approve?sortby={{ s_key }}&amp;filterby={{ filterby }}" t-esc="sortings[s_key]['label']"/>
+                                        </li>
+                                    </t>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-body p-0">
+                        <t t-if="not loans">
+                            <div class="text-center py-5 text-muted">
+                                <i class="fa fa-check-circle-o fa-3x mb-3 text-success"/>
+                                <p class="mb-0">No loan requests waiting for your approval.</p>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Ref &amp; Date</th>
+                                            <th>Employee</th>
+                                            <th>Category</th>
+                                            <th>Amount</th>
+                                            <th>Status</th>
+                                            <th class="text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <t t-foreach="loans" t-as="req">
+                                            <tr>
+                                                <td>
+                                                    <div class="fw-bold font-monospace text-dark" t-esc="req.name"/>
+                                                    <div class="small text-muted" t-esc="req.payment_date or (req.create_date.strftime('%Y-%m-%d') if req.create_date else '')"/>
+                                                </td>
+                                                <td>
+                                                    <div class="fw-bold text-dark" t-esc="req.employee_id.name"/>
+                                                    <div class="small text-muted" t-esc="req.farm_id.name or 'Assigned Farm'"/>
+                                                </td>
+                                                <td>
+                                                    <t t-if="req.loan_type == 'advance_salary'">
+                                                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">Advance Salary</span>
+                                                    </t>
+                                                    <t t-else="">
+                                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">High Amount</span>
+                                                    </t>
+                                                </td>
+                                                <td>
+                                                    <strong class="text-dark"><t t-esc="req.loan_amount"/> <t t-esc="req.currency_id.symbol"/></strong>
+                                                </td>
+                                                <td>
+                                                    <t t-if="req.state == 'approved'">
+                                                        <span class="badge rounded-pill bg-success px-3 py-1">Approved</span>
+                                                    </t>
+                                                    <t t-elif="req.state in ('waiting_farm_manager', 'waiting_gm')">
+                                                        <span class="badge rounded-pill bg-warning text-dark px-3 py-1">Pending Authorization</span>
+                                                    </t>
+                                                    <t t-elif="req.state == 'rejected'">
+                                                        <span class="badge rounded-pill bg-danger px-3 py-1">Rejected</span>
+                                                    </t>
+                                                    <t t-else="">
+                                                        <span class="badge rounded-pill bg-light text-dark border px-3 py-1" t-esc="req.state"/>
+                                                    </t>
+                                                </td>
+                                                <td class="text-end">
+                                                    <div class="d-inline-flex gap-1">
+                                                        <a t-attf-href="/my/loans/{{ req.id }}" class="btn btn-sm btn-outline-secondary" title="View Details">
+                                                            <i class="fa fa-eye"/>
+                                                        </a>
+
+                                                        <!-- Quick Approve & Reject Buttons -->
+                                                        <t t-if="req.state in ('waiting_farm_manager', 'waiting_gm')">
+                                                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" t-attf-data-bs-target="#teamLoanRejectModal{{ req.id }}" title="Reject">
+                                                                <i class="fa fa-times"/>
+                                                            </button>
+                                                            <form t-attf-action="/my/loans/{{ req.id }}/approve" method="post" class="d-inline">
+                                                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                                                <input type="hidden" name="redirect_to" value="to_approve"/>
+                                                                <button type="submit" class="btn btn-sm btn-success" title="Approve">
+                                                                    <i class="fa fa-check"/> Approve
+                                                                </button>
+                                                            </form>
+                                                        </t>
+                                                    </div>
+                                                </td>
+                                            </tr>
+
+                                            <!-- Rejection Modal per row -->
+                                            <div class="modal fade" t-attf-id="teamLoanRejectModal{{ req.id }}" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog">
+                                                    <div class="modal-content">
+                                                        <form t-attf-action="/my/loans/{{ req.id }}/reject" method="post">
+                                                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                                            <input type="hidden" name="redirect_to" value="to_approve"/>
+                                                            <div class="modal-header bg-danger text-white">
+                                                                <h5 class="modal-title fw-bold"><i class="fa fa-times-circle me-2"/>Reject Loan: <t t-esc="req.name"/></h5>
+                                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"/>
+                                                            </div>
+                                                            <div class="modal-body p-4 text-start">
+                                                                <p>Please enter the reason for rejecting loan application for <strong><t t-esc="req.employee_id.name"/></strong>:</p>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label fw-bold">Rejection Reason</label>
+                                                                    <textarea class="form-control" name="rejection_reason" rows="3" required="required" placeholder="Reason for refusal..."></textarea>
+                                                                </div>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                                <button type="submit" class="btn btn-danger fw-bold">Confirm Rejection</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                        </t>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </t>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div t-if="pager['page_count'] &gt; 1" class="card-footer bg-white d-flex justify-content-center py-3">
+                        <t t-call="portal.pager"/>
+                    </div>
+                </div>
+
+            </div>
+        </t>
+    </template>
+
+</odoo>

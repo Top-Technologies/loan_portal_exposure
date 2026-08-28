@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_config_settings_view_form_inherit_loan_portal" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.loan.portal</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority">50</field>
+        <field name="inherit_id" ref="hr.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='hr']" position="inside">
+                <block title="Employee Loans &amp; Approvals" id="employee_loans_setting">
+                    <setting id="loan_gm_setting" string="General Manager (GM) for Loans" help="Designated GM responsible for authorising High Monetary Amount Loans.">
+                        <field name="loan_gm_user_id" widget="many2one_avatar_user"/>
+                    </setting>
+                    <setting id="loan_hr_finance_setting" string="HR &amp; Finance Notification Recipients" help="HR and Finance managers who receive automated email confirmation when High Monetary Loans are authorized by the GM.">
+                        <div class="content-group">
+                            <div class="row mt16">
+                                <label for="loan_hr_manager_id" class="col-lg-4 o_light_label" string="HR Manager"/>
+                                <field name="loan_hr_manager_id" widget="many2one_avatar_user"/>
+                            </div>
+                            <div class="row mt8">
+                                <label for="loan_finance_manager_id" class="col-lg-4 o_light_label" string="Finance Manager"/>
+                                <field name="loan_finance_manager_id" widget="many2one_avatar_user"/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="loan_approval_categories_setting" string="Approvals Module Categories" help="Linked approval categories in Odoo Approvals app.">
+                        <div class="content-group">
+                            <div class="row mt16">
+                                <label for="loan_advance_category_id" class="col-lg-4 o_light_label" string="Advance Salary Category"/>
+                                <field name="loan_advance_category_id"/>
+                            </div>
+                            <div class="row mt8">
+                                <label for="loan_high_amount_category_id" class="col-lg-4 o_light_label" string="High Amount Loan Category"/>
+                                <field name="loan_high_amount_category_id"/>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

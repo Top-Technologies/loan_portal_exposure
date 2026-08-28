@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- 1. Approval Category: Advance One Month Salary Loan -->
+        <record id="approval_category_advance_salary_loan" model="approval.category">
+            <field name="name">Employee Loan - Advance 1-Month Salary</field>
+            <field name="has_amount">optional</field>
+            <field name="has_date">optional</field>
+            <field name="has_reference">optional</field>
+            <field name="approval_minimum">1</field>
+            <field name="manager_approval">required</field>
+            <field name="sequence_code">LOAN-ADV</field>
+            <field name="description">Approval category for employee advance one month salary loans.</field>
+        </record>
+
+        <!-- 2. Approval Category: High Monetary Amount Loan -->
+        <record id="approval_category_high_amount_loan" model="approval.category">
+            <field name="name">Employee Loan - High Monetary Amount</field>
+            <field name="has_amount">required</field>
+            <field name="has_date">optional</field>
+            <field name="has_reference">optional</field>
+            <field name="approval_minimum">1</field>
+            <field name="sequence_code">LOAN-HIGH</field>
+            <field name="description">Approval category for high monetary amount employee loans routed to the General Manager.</field>
+        </record>
+
+    </data>
+</odoo>
