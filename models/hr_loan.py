@@ -137,11 +137,49 @@ class HrLoan(models.Model):
                 loan.farm_id = False
                 loan.farm_manager_id = False
 
+    @api.constrains('loan_type', 'loan_amount', 'installment_months', 'employee_id')
+    def _check_loan_rules(self):
+        for loan in self:
+            if not loan.employee_id:
+                continue
+            monthly_salary = loan.employee_id.get_monthly_salary_estimate()
+            if loan.loan_type == 'advance_salary':
+                if loan.installment_months != 3:
+                    loan.installment_months = 3
+            elif loan.loan_type == 'high_amount':
+                if loan.installment_months not in (6, 12):
+                    raise ValidationError(_("Repayment duration for High Monetary Amount Loan must be either 6 months or 12 months."))
+                if monthly_salary > 0:
+                    max_allowed_loan = round(4 * monthly_salary, 2)
+                    if loan.loan_amount > max_allowed_loan:
+                        raise ValidationError(_(
+                            "The requested loan amount (%(amount)s %(curr)s) exceeds the maximum allowed limit of 4 times the monthly salary (Max: %(max_amt)s %(curr)s).",
+                            amount=loan.loan_amount,
+                            max_amt=max_allowed_loan,
+                            curr=loan.currency_id.symbol or ''
+                        ))
+                    max_monthly_deduction = round(monthly_salary / 3.0, 2)
+                    installment = round(loan.loan_amount / loan.installment_months, 2)
+                    if installment > (max_monthly_deduction + 0.01):
+                        raise ValidationError(_(
+                            "The monthly installment (%(installment)s %(curr)s/month) exceeds the maximum allowed limit of 1/3 of the monthly salary (Max deduction: %(max_ded)s %(curr)s/month). Please choose 12 months duration or reduce the loan amount.",
+                            installment=installment,
+                            max_ded=max_monthly_deduction,
+                            curr=loan.currency_id.symbol or ''
+                        ))
+
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get('name', _('New')) == _('New'):
                 vals['name'] = self.env['ir.sequence'].next_by_code('hr.loan') or _('New')
+            if vals.get('loan_type') == 'advance_salary':
+                vals['installment_months'] = 3
+                if not vals.get('loan_amount') and vals.get('employee_id'):
+                    emp = self.env['hr.employee'].browse(vals['employee_id'])
+                    wage = emp.get_monthly_salary_estimate()
+                    if wage > 0:
+                        vals['loan_amount'] = wage
         return super().create(vals_list)
 
     def action_submit(self):

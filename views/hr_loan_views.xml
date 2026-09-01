@@ -37,6 +37,8 @@
                             <field name="loan_amount" widget="monetary"/>
                             <field name="currency_id" invisible="1"/>
                             <field name="payment_date"/>
+                            <field name="installment_months" readonly="loan_type == 'advance_salary'"/>
+                            <field name="installment_amount" widget="monetary"/>
                             <field name="approval_request_id" readonly="1" invisible="not approval_request_id"/>
                         </group>
                     </group>
@@ -79,6 +81,8 @@
                 <field name="employee_id" widget="many2one_avatar_employee"/>
                 <field name="loan_type"/>
                 <field name="loan_amount" sum="Total Loans"/>
+                <field name="installment_months"/>
+                <field name="installment_amount"/>
                 <field name="payment_date"/>
                 <field name="farm_id"/>
                 <field name="state" widget="badge" decoration-info="state in ('waiting_farm_manager', 'waiting_gm')" decoration-success="state == 'approved'" decoration-danger="state == 'rejected'"/>

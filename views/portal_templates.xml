@@ -5,6 +5,32 @@
     <!-- 1. Portal Home Entries & Breadcrumbs                              -->
     <!-- ================================================================= -->
 
+    <template id="portal_my_home_approval_alerts_loan" name="Portal My Home : Loan Approval Alert" inherit_id="portal.portal_my_home" priority="25">
+        <xpath expr="//div[hasclass('o_portal_docs')]" position="before">
+            <t t-if="loans_to_approve_count and loans_to_approve_count &gt; 0">
+                <div class="alert alert-warning border-warning d-flex flex-column flex-md-row align-items-md-center justify-content-between p-3 rounded-3 shadow-sm mb-4 alert-approval-pulse-warning">
+                    <div class="d-flex align-items-center gap-3 mb-2 mb-md-0">
+                        <div class="bg-warning text-dark rounded-circle p-2 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 44px; height: 44px;">
+                            <i class="fa fa-hand-holding-usd fa-lg"/>
+                        </div>
+                        <div>
+                            <h6 class="mb-0 fw-bold text-dark">
+                                <span class="badge bg-danger text-white me-2">Action Required</span>
+                                You have <t t-esc="loans_to_approve_count"/> Employee Loan request<t t-if="loans_to_approve_count &gt; 1">s</t> awaiting your authorization!
+                            </h6>
+                            <div class="text-dark opacity-75 small">
+                                Loan applications have been submitted and require your manager / GM decision.
+                            </div>
+                        </div>
+                    </div>
+                    <a href="/my/loans/to_approve" class="btn btn-warning text-dark fw-bold px-3 py-2 text-nowrap shadow-sm">
+                        <i class="fa fa-check-circle me-1"/> Review Loans &#8594;
+                    </a>
+                </div>
+            </t>
+        </xpath>
+    </template>
+
     <template id="portal_my_home_loans" name="Portal My Home : Loans" inherit_id="portal.portal_my_home" priority="45">
         <xpath expr="//div[hasclass('o_portal_docs')]" position="inside">
             <t t-call="portal.portal_docs_entry">
@@ -12,8 +38,8 @@
                 <t t-set="title">My Loans</t>
                 <t t-set="text">Apply for salary advances and loans</t>
                 <t t-set="url" t-value="'/my/loans'"/>
+                <t t-set="count" t-value="loans_count"/>
                 <t t-set="config_card" t-value="True"/>
-                <t t-set="placeholder_count" t-value="'loans_count'"/>
             </t>
             <t t-if="loans_to_approve_count is not None and loans_to_approve_count &gt; 0">
                 <t t-call="portal.portal_docs_entry">
@@ -189,6 +215,7 @@
                                             <th>Reference</th>
                                             <th>Category</th>
                                             <th>Amount</th>
+                                            <th>Repayment Plan</th>
                                             <th>Date</th>
                                             <th>Status</th>
                                             <th class="text-end">Actions</th>
@@ -214,6 +241,10 @@
                                                 </td>
                                                 <td>
                                                     <strong class="text-dark"><t t-esc="l.loan_amount"/> <t t-esc="l.currency_id.symbol"/></strong>
+                                                </td>
+                                                <td>
+                                                    <span class="fw-semibold text-dark"><t t-esc="l.installment_months"/> Months</span>
+                                                    <span class="text-muted small d-block">(<t t-esc="l.installment_amount"/> <t t-esc="l.currency_id.symbol"/>/mo)</span>
                                                 </td>
                                                 <td>
                                                     <span class="text-muted"><t t-esc="l.payment_date"/></span>
@@ -312,7 +343,7 @@
                                                         <span id="badge_selected_advance" class="badge bg-primary px-2 py-1"><i class="fa fa-check-circle me-1"/>Selected</span>
                                                     </div>
                                                     <p class="small text-muted mb-0">
-                                                        Short-term emergency advance of 1 month salary. Approved by your <strong>Farm Manager</strong>.
+                                                        Emergency advance of 1 month salary repayable in <strong>3 equal installments</strong>. Approved by your <strong>Farm Manager</strong>.
                                                     </p>
                                                 </div>
                                             </div>
@@ -328,30 +359,72 @@
                                                         <span id="badge_selected_high" class="badge bg-warning text-dark px-2 py-1" style="display: none;"><i class="fa fa-check-circle me-1"/>Selected</span>
                                                     </div>
                                                     <p class="small text-muted mb-0">
-                                                        Higher loan amount. Authorized directly by the <strong>General Manager (GM)</strong>.
+                                                        Up to <strong>4x monthly salary</strong> repayable in <strong>6 or 12 months</strong> (installment &#8804; 1/3 salary). Authorized by <strong>General Manager (GM)</strong>.
                                                     </p>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <!-- Advance Salary Info Banner (Visible for Advance Salary) -->
+                                    <!-- Advance Salary Info Box (Visible for Advance Salary) -->
                                     <div id="advance_salary_info_box" class="alert alert-info py-3 px-3 rounded-3 mb-4">
-                                        <div class="d-flex align-items-center gap-2">
-                                            <i class="fa fa-info-circle fa-lg text-info"/>
-                                            <div>
-                                                <strong>Advance 1-Month Salary Loan:</strong> The requested amount is automatically set to your full 1-month salary and forwarded to your Farm Manager.
+                                        <div class="d-flex align-items-start gap-2">
+                                            <i class="fa fa-info-circle fa-lg text-info mt-1"/>
+                                            <div class="w-100">
+                                                <div class="fw-bold mb-1">Advance 1-Month Salary Loan (Constant Terms)</div>
+                                                <div class="small">
+                                                    • <strong>Loan Amount:</strong> 1 month base salary (<span class="text-primary fw-bold"><t t-esc="monthly_salary"/> <t t-esc="currency.symbol"/></span>)<br/>
+                                                    • <strong>Repayment Schedule:</strong> Fixed at <strong>3 equal monthly installments</strong> (<span class="text-success fw-bold"><t t-esc="advance_installment"/> <t t-esc="currency.symbol"/> / month</span>)<br/>
+                                                    • <strong>Approval:</strong> Reviewed directly by your Farm Manager.
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <!-- 2. Loan Amount Input (Visible ONLY for High Monetary Loan) -->
-                                    <div class="mb-3" id="loan_amount_container" style="display: none;">
-                                        <label for="loan_amount" class="form-label fw-bold">Requested Loan Amount (<t t-esc="currency.symbol"/>) <span class="text-danger">*</span></label>
-                                        <div class="input-group input-group-lg">
-                                            <span class="input-group-text bg-light fw-bold"><t t-esc="currency.symbol"/></span>
-                                            <input type="number" step="0.01" class="form-control fw-bold" id="loan_amount" name="loan_amount"
-                                                   t-att-value="post.get('loan_amount', '')" placeholder="Enter loan amount..."/>
+                                    <!-- High Monetary Amount Section (Visible ONLY for High Monetary Loan) -->
+                                    <div id="high_amount_container" style="display: none;">
+                                        <!-- Policy & Salary Guideline Banner -->
+                                        <div class="alert alert-warning bg-warning bg-opacity-10 border-warning py-3 px-3 rounded-3 mb-3">
+                                            <div class="fw-bold text-dark mb-1"><i class="fa fa-shield me-1 text-warning"/> High Monetary Loan Policy Rules:</div>
+                                            <div class="row g-2 small text-dark mt-1">
+                                                <div class="col-12 col-md-4">
+                                                    <span class="text-muted">Monthly Salary:</span> <strong><t t-esc="monthly_salary"/> <t t-esc="currency.symbol"/></strong>
+                                                </div>
+                                                <div class="col-12 col-md-4">
+                                                    <span class="text-muted">Max Loan Limit (4x):</span> <strong class="text-primary"><t t-esc="max_loan_amount"/> <t t-esc="currency.symbol"/></strong>
+                                                </div>
+                                                <div class="col-12 col-md-4">
+                                                    <span class="text-muted">Max Monthly Deduction (1/3):</span> <strong class="text-danger"><t t-esc="max_monthly_installment"/> <t t-esc="currency.symbol"/>/mo</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Loan Amount Input -->
+                                        <div class="mb-3">
+                                            <label for="loan_amount" class="form-label fw-bold">Requested Loan Amount (<t t-esc="currency.symbol"/>) <span class="text-danger">*</span></label>
+                                            <div class="input-group input-group-lg">
+                                                <span class="input-group-text bg-light fw-bold"><t t-esc="currency.symbol"/></span>
+                                                <input type="number" step="0.01" class="form-control fw-bold" id="loan_amount" name="loan_amount"
+                                                       t-att-value="post.get('loan_amount', '')" placeholder="Enter loan amount (Max: 4x salary)..."
+                                                       t-att-data-salary="monthly_salary" t-att-data-max-loan="max_loan_amount" t-att-data-max-installment="max_monthly_installment"
+                                                       t-att-data-currency="currency.symbol"/>
+                                            </div>
+                                            <div class="form-text text-muted small">Up to 4 times your monthly salary (<t t-esc="max_loan_amount"/> <t t-esc="currency.symbol"/>).</div>
+                                        </div>
+
+                                        <!-- Repayment Duration Selector (6 or 12 months) -->
+                                        <div class="mb-3">
+                                            <label for="installment_months" class="form-label fw-bold">Repayment Duration <span class="text-danger">*</span></label>
+                                            <select class="form-select form-select-lg fw-bold" id="installment_months" name="installment_months">
+                                                <option value="6" t-att-selected="'selected' if post.get('installment_months') == '6' else None">6 Months</option>
+                                                <option value="12" t-att-selected="'selected' if post.get('installment_months') == '12' or not post.get('installment_months') else None">12 Months (1 Year)</option>
+                                            </select>
+                                            <div class="form-text text-muted small">Select 6 or 12 months. Monthly deduction cannot exceed 1/3 of your monthly salary (<t t-esc="max_monthly_installment"/> <t t-esc="currency.symbol"/>/mo).</div>
+                                        </div>
+
+                                        <!-- Live Calculation & Real-time Rule Check Alert -->
+                                        <div id="rule_alert_container" class="mb-3" style="display: none;">
+                                            <div id="rule_alert_box" class="alert py-2 px-3 small rounded-3 mb-0"></div>
                                         </div>
                                     </div>
 
@@ -404,6 +477,17 @@
                             </div>
                         </div>
 
+                    </div>
+                </div>
+
+                <!-- Processing Overlay Loader -->
+                <div id="loan_processing_overlay" class="portal-processing-overlay">
+                    <div class="portal-processing-card">
+                        <div class="spinner-border text-primary mb-3" style="width: 3.5rem; height: 3.5rem;" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h4 class="fw-bold mb-2 text-dark" id="loan_processing_loader_title">Submitting Loan Application...</h4>
+                        <p class="text-muted mb-0" id="loan_processing_loader_text">Please wait while your loan request is received and forwarded for authorization...</p>
                     </div>
                 </div>
 
@@ -493,6 +577,18 @@
                                         <div class="text-muted small">Requested Amount</div>
                                         <div class="fw-bold fs-5 text-primary">
                                             <t t-esc="loan.loan_amount"/> <t t-esc="loan.currency_id.symbol"/>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="text-muted small">Repayment Duration</div>
+                                        <div class="fw-bold text-dark">
+                                            <t t-esc="loan.installment_months"/> Months
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="text-muted small">Monthly Deduction</div>
+                                        <div class="fw-bold text-success">
+                                            <t t-esc="loan.installment_amount"/> <t t-esc="loan.currency_id.symbol"/> / month
                                         </div>
                                     </div>
                                     <div class="col-6 col-md-4">
@@ -653,6 +749,17 @@
                     </div>
                 </div>
 
+                <!-- Processing Overlay Loader -->
+                <div id="loan_processing_overlay" class="portal-processing-overlay">
+                    <div class="portal-processing-card">
+                        <div class="spinner-border text-primary mb-3" style="width: 3.5rem; height: 3.5rem;" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h4 class="fw-bold mb-2 text-dark" id="loan_processing_loader_title">Processing Decision...</h4>
+                        <p class="text-muted mb-0" id="loan_processing_loader_text">Please wait while the system registers your decision and notifies relevant parties...</p>
+                    </div>
+                </div>
+
             </div>
         </t>
     </template>
@@ -750,6 +857,7 @@
                                             <th>Employee</th>
                                             <th>Category</th>
                                             <th>Amount</th>
+                                            <th>Repayment Plan</th>
                                             <th>Status</th>
                                             <th class="text-end">Actions</th>
                                         </tr>
@@ -775,6 +883,10 @@
                                                 </td>
                                                 <td>
                                                     <strong class="text-dark"><t t-esc="req.loan_amount"/> <t t-esc="req.currency_id.symbol"/></strong>
+                                                </td>
+                                                <td>
+                                                    <span class="fw-semibold text-dark"><t t-esc="req.installment_months"/> Months</span>
+                                                    <span class="text-muted small d-block">(<t t-esc="req.installment_amount"/> <t t-esc="req.currency_id.symbol"/>/mo)</span>
                                                 </td>
                                                 <td>
                                                     <t t-if="req.state == 'approved'">
@@ -850,6 +962,17 @@
                     <!-- Pagination -->
                     <div t-if="pager['page_count'] &gt; 1" class="card-footer bg-white d-flex justify-content-center py-3">
                         <t t-call="portal.pager"/>
+                    </div>
+                </div>
+
+                <!-- Processing Overlay Loader -->
+                <div id="loan_processing_overlay" class="portal-processing-overlay">
+                    <div class="portal-processing-card">
+                        <div class="spinner-border text-primary mb-3" style="width: 3.5rem; height: 3.5rem;" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h4 class="fw-bold mb-2 text-dark" id="loan_processing_loader_title">Processing Decision...</h4>
+                        <p class="text-muted mb-0" id="loan_processing_loader_text">Please wait while the system registers your decision and notifies relevant parties...</p>
                     </div>
                 </div>
 

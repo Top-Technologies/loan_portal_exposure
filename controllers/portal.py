@@ -18,18 +18,18 @@ class LoanCustomerPortal(CustomerPortal):
         employee = self._get_current_employee()
 
         if employee:
-            if 'loans_count' in counters:
-                values['loans_count'] = request.env['hr.loan'].sudo().search_count([
-                    ('employee_id', '=', employee.id)
-                ])
+            values['loans_count'] = request.env['hr.loan'].sudo().search_count([
+                ('employee_id', '=', employee.id)
+            ])
+        else:
+            values['loans_count'] = 0
 
         # Approvals counter for Farm Managers and GM
-        if 'loans_to_approve_count' in counters:
-            to_approve_domain = self._get_to_approve_domain(user, employee)
-            if to_approve_domain:
-                values['loans_to_approve_count'] = request.env['hr.loan'].sudo().search_count(to_approve_domain)
-            else:
-                values['loans_to_approve_count'] = 0
+        to_approve_domain = self._get_to_approve_domain(user, employee)
+        if to_approve_domain:
+            values['loans_to_approve_count'] = request.env['hr.loan'].sudo().search_count(to_approve_domain)
+        else:
+            values['loans_to_approve_count'] = 0
 
         return values
 
@@ -191,8 +191,12 @@ class LoanCustomerPortal(CustomerPortal):
 
         errors = []
         monthly_salary = employee.get_monthly_salary_estimate()
+        max_loan_amount = round(4 * monthly_salary, 2)
+        max_monthly_installment = round(monthly_salary / 3.0, 2)
+        advance_installment = round(monthly_salary / 3.0, 2) if monthly_salary > 0 else 0.0
         farm_manager = employee.get_assigned_farm_manager()
         gm_user = request.env.company.loan_gm_user_id
+        currency = employee.company_id.currency_id
 
         if request.httprequest.method == 'POST':
             loan_type = post.get('loan_type', 'advance_salary')
@@ -202,6 +206,7 @@ class LoanCustomerPortal(CustomerPortal):
 
             if loan_type == 'advance_salary':
                 loan_amount = monthly_salary if monthly_salary > 0 else 0.0
+                installment_months = 3
             else:
                 loan_amount_str = post.get('loan_amount', '0').strip()
                 try:
@@ -211,6 +216,30 @@ class LoanCustomerPortal(CustomerPortal):
                 except ValueError:
                     errors.append(_("Please enter a valid numeric loan amount."))
                     loan_amount = 0.0
+
+                try:
+                    installment_months = int(post.get('installment_months', '6'))
+                    if installment_months not in (6, 12):
+                        installment_months = 6
+                except (ValueError, TypeError):
+                    installment_months = 6
+
+                # High monetary loan rules validation
+                if monthly_salary > 0 and loan_amount > 0:
+                    if loan_amount > max_loan_amount:
+                        errors.append(_("The requested loan amount (%(amt)s %(curr)s) exceeds the maximum allowed 4 times your monthly salary (Max: %(max_amt)s %(curr)s).") % {
+                            'amt': loan_amount,
+                            'curr': currency.symbol or '',
+                            'max_amt': max_loan_amount
+                        })
+                    
+                    monthly_ded = round(loan_amount / installment_months, 2)
+                    if monthly_ded > (max_monthly_installment + 0.01):
+                        errors.append(_("Monthly installment (%(ded)s %(curr)s/month) exceeds the maximum allowed 1/3 of your monthly salary (Max deduction: %(max_ded)s %(curr)s/month). Please choose 12 months duration or reduce the loan amount.") % {
+                            'ded': monthly_ded,
+                            'curr': currency.symbol or '',
+                            'max_ded': max_monthly_installment
+                        })
 
             if not reason:
                 errors.append(_("Please provide a reason or purpose for the loan request."))
@@ -223,7 +252,7 @@ class LoanCustomerPortal(CustomerPortal):
                         'loan_type': loan_type,
                         'loan_amount': loan_amount,
                         'payment_date': payment_date_str or fields.Date.today(),
-                        'installment_months': 1,
+                        'installment_months': installment_months,
                         'reason': reason,
                         'is_portal_submitted': True,
                     }
@@ -254,12 +283,15 @@ class LoanCustomerPortal(CustomerPortal):
             'page_name': 'loan_new',
             'employee': employee,
             'monthly_salary': monthly_salary,
+            'max_loan_amount': max_loan_amount,
+            'max_monthly_installment': max_monthly_installment,
+            'advance_installment': advance_installment,
             'farm_manager': farm_manager,
             'gm_user': gm_user,
             'errors': errors,
             'post': post,
             'today': fields.Date.today(),
-            'currency': employee.company_id.currency_id,
+            'currency': currency,
         }
         return request.render('loan_portal_exposure.portal_my_loans_new', values)
 
