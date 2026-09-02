@@ -19,6 +19,17 @@
                     <field name="state" widget="statusbar" statusbar_visible="draft,waiting_farm_manager,waiting_gm,approved,paid"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_salary_attachment"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-paperclip"
+                                invisible="not salary_attachment_id">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Salary Attachment</span>
+                            </div>
+                        </button>
+                    </div>
                     <div class="oe_title">
                         <h1>
                             <field name="name" readonly="1"/>
@@ -40,6 +51,7 @@
                             <field name="installment_months" readonly="loan_type == 'advance_salary'"/>
                             <field name="installment_amount" widget="monetary"/>
                             <field name="approval_request_id" readonly="1" invisible="not approval_request_id"/>
+                            <field name="salary_attachment_id" readonly="1" invisible="not salary_attachment_id"/>
                         </group>
                     </group>
                     <notebook>

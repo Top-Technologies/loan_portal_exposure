@@ -119,6 +119,12 @@ class HrLoan(models.Model):
         default=False,
         copy=False
     )
+    salary_attachment_id = fields.Many2one(
+        'hr.salary.attachment',
+        string="Linked Salary Attachment",
+        copy=False,
+        readonly=True
+    )
 
     @api.depends('loan_amount', 'installment_months')
     def _compute_installment_amount(self):
@@ -270,6 +276,9 @@ class HrLoan(models.Model):
                 'approval_date': fields.Datetime.now(),
             })
 
+            # Auto create & sync open Salary Attachment and contract deduction
+            loan._create_or_sync_salary_attachment()
+
             # Sync linked approval request
             if loan.approval_request_id:
                 try:
@@ -304,6 +313,9 @@ class HrLoan(models.Model):
                 'approval_date': fields.Datetime.now(),
             })
 
+            # Auto create & sync open Salary Attachment and contract deduction
+            loan._create_or_sync_salary_attachment()
+
             # Sync linked approval request
             if loan.approval_request_id:
                 try:
@@ -329,6 +341,53 @@ class HrLoan(models.Model):
 
         return True
 
+    def _create_or_sync_salary_attachment(self):
+        """ Automatically creates/syncs an open salary attachment for approved loans and populates contract deductions """
+        SalaryAttachment = self.env['hr.salary.attachment'].sudo()
+        input_type = self.env.ref('hr_payroll.input_attachment_salary', raise_if_not_found=False)
+        if not input_type:
+            input_type = self.env['hr.payslip.input.type'].search([('code', 'in', ('ATTACH_SALARY', 'DEDUCTION'))], limit=1)
+
+        for loan in self:
+            if not loan.employee_id or loan.loan_amount <= 0:
+                continue
+
+            # Link to Category 2 Loan/Advance deduction on contract ('advance')
+            ded_type = 'advance'
+
+            vals = {
+                'employee_ids': [(6, 0, [loan.employee_id.id])],
+                'other_input_type_id': input_type.id if input_type else False,
+                'description': f"Approved Loan: {loan.name} - {loan.reason or dict(loan._fields['loan_type'].selection).get(loan.loan_type, '')}",
+                'loan_deduction_type': ded_type,
+                'has_total_amount': True,
+                'total_amount': loan.loan_amount,
+                'monthly_amount': loan.installment_amount,
+                'date_start': loan.payment_date or fields.Date.today(),
+                'no_end_date': False,
+                'state': 'open',
+                'company_id': loan.company_id.id,
+            }
+
+            if loan.salary_attachment_id:
+                loan.salary_attachment_id.sudo().write(vals)
+            else:
+                att = SalaryAttachment.create(vals)
+                loan.sudo().write({'salary_attachment_id': att.id})
+
+    def action_view_salary_attachment(self):
+        """ Opens the linked salary attachment form view """
+        self.ensure_one()
+        if not self.salary_attachment_id:
+            raise UserError(_("No salary attachment is linked to this loan yet."))
+        return {
+            'name': _('Salary Attachment'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'hr.salary.attachment',
+            'view_mode': 'form',
+            'res_id': self.salary_attachment_id.id,
+        }
+
     def action_portal_reject(self, reason=""):
         """ Executed by Farm Manager or GM to reject loan """
         for loan in self:
@@ -340,6 +399,10 @@ class HrLoan(models.Model):
                 'state': 'rejected',
                 'rejection_reason': clean_reason,
             })
+
+            # Cancel linked salary attachment if any
+            if loan.salary_attachment_id:
+                loan.salary_attachment_id.sudo().write({'state': 'cancel'})
 
             # Sync linked approval request
             if loan.approval_request_id:
@@ -370,6 +433,10 @@ class HrLoan(models.Model):
                 raise UserError(_("You can only cancel pending loan requests."))
 
             loan.sudo().write({'state': 'cancelled'})
+
+            # Cancel linked salary attachment if any
+            if loan.salary_attachment_id:
+                loan.salary_attachment_id.sudo().write({'state': 'cancel'})
 
             if loan.approval_request_id:
                 try:
