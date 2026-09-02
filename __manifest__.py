@@ -42,6 +42,7 @@ Empowers workforce employees to apply for and track employee loans directly from
         'data/mail_template_data.xml',
         'views/hr_loan_views.xml',
         'views/hr_employee_views.xml',
+        'views/hr_departure_wizard_views.xml',
         'views/res_config_settings_views.xml',
         'views/portal_templates.xml',
     ],

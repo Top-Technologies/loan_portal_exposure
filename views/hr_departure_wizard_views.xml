@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="hr_departure_wizard_view_form_inherit_loans" model="ir.ui.view">
+        <field name="name">hr.departure.wizard.view.form.inherit.loans</field>
+        <field name="model">hr.departure.wizard</field>
+        <field name="inherit_id" ref="hr.hr_departure_wizard_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <field name="currency_id" invisible="1"/>
+                <field name="has_outstanding_liabilities" invisible="1"/>
+
+                <!-- Outstanding Liabilities Alert & Clearance Summary -->
+                <div class="alert alert-danger border-danger mt-3 mb-3 p-3 rounded-3 shadow-sm" invisible="not has_outstanding_liabilities">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="fa fa-exclamation-triangle fa-2x text-danger"/>
+                        <div>
+                            <h5 class="mb-0 fw-bold text-danger">Outstanding Financial Liabilities Detected</h5>
+                            <div class="text-muted small">
+                                This employee has unsettled loans or open salary attachments that must be recovered during final settlement.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-2 text-center mt-2 pt-2 border-top">
+                        <div class="col-4">
+                            <div class="p-2 bg-white rounded border">
+                                <div class="text-muted small">Active Loans Balance</div>
+                                <div class="fw-bold fs-6 text-danger">
+                                    <field name="outstanding_loan_balance" widget="monetary"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 bg-white rounded border">
+                                <div class="text-muted small">Open Attachments</div>
+                                <div class="fw-bold fs-6 text-danger">
+                                    <field name="outstanding_attachment_balance" widget="monetary"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 bg-danger bg-opacity-10 rounded border border-danger">
+                                <div class="text-danger small fw-bold">Total Unsettled Liability</div>
+                                <div class="fw-bold fs-6 text-danger">
+                                    <field name="total_outstanding_liability" widget="monetary"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Loans and Open Attachments Lists -->
+                <notebook invisible="not has_outstanding_liabilities">
+                    <page string="Active Loans" name="active_loans" invisible="not active_loan_ids">
+                        <field name="active_loan_ids" readonly="1">
+                            <list>
+                                <field name="name"/>
+                                <field name="loan_type"/>
+                                <field name="loan_amount" widget="monetary"/>
+                                <field name="installment_amount" widget="monetary"/>
+                                <field name="installment_months"/>
+                                <field name="state" widget="badge" decoration-success="state == 'approved'"/>
+                            </list>
+                        </field>
+                    </page>
+                    <page string="Open Salary Attachments" name="open_attachments" invisible="not open_attachment_ids">
+                        <field name="open_attachment_ids" readonly="1">
+                            <list>
+                                <field name="description"/>
+                                <field name="loan_deduction_type"/>
+                                <field name="total_amount" widget="monetary"/>
+                                <field name="paid_amount" widget="monetary"/>
+                                <field name="remaining_amount" widget="monetary"/>
+                                <field name="monthly_amount" widget="monetary"/>
+                                <field name="state" widget="badge" decoration-info="state == 'open'"/>
+                            </list>
+                        </field>
+                    </page>
+                </notebook>
+
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Smart Button for Loans on Employee Form -->
+    <!-- Smart Buttons & Loans Tab on Employee Form -->
     <record id="view_employee_form_inherit_loan_portal" model="ir.ui.view">
         <field name="name">hr.employee.form.inherit.loan.portal</field>
         <field name="model">hr.employee</field>
@@ -9,7 +9,7 @@
         <field name="priority">45</field>
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
-                <button name="action_view_employee_loans" type="object" class="oe_stat_button" icon="fa-money">
+                <button name="action_view_employee_loans" type="object" class="oe_stat_button" icon="fa-money" groups="hr.group_hr_user">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value">
                             <field name="loan_count"/>
@@ -17,6 +17,89 @@
                         <span class="o_stat_text">Loans</span>
                     </div>
                 </button>
+                <button name="action_view_employee_attachments" type="object" class="oe_stat_button" icon="fa-paperclip" groups="hr.group_hr_user">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_value">
+                            <field name="active_attachments_count"/>
+                        </span>
+                        <span class="o_stat_text">Attachments</span>
+                    </div>
+                </button>
+            </xpath>
+
+            <!-- Dedicated Tab for Loans & Attachments Overview & Resignation Clearance -->
+            <xpath expr="//notebook" position="inside">
+                <page string="Loans &amp; Attachments" name="loans_attachments" groups="hr.group_hr_user">
+                    <field name="has_outstanding_liabilities" invisible="1"/>
+                    <field name="outstanding_loan_balance" invisible="1"/>
+                    <field name="outstanding_attachment_balance" invisible="1"/>
+                    <field name="total_outstanding_liability" invisible="1"/>
+
+                    <!-- Offboarding & Financial Clearance KPI Banner -->
+                    <div class="alert alert-warning border-warning d-flex align-items-center justify-content-between p-3 rounded-3 mb-3" invisible="not has_outstanding_liabilities">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="bg-warning text-dark rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+                                <i class="fa fa-exclamation-triangle fa-lg"/>
+                            </div>
+                            <div>
+                                <h6 class="mb-0 fw-bold text-dark">Active Financial Liabilities (Clearance Alert)</h6>
+                                <div class="text-muted small">
+                                    Total Unsettled Balance: <strong class="text-danger"><field name="total_outstanding_liability" widget="monetary"/></strong> 
+                                    (Loans: <field name="outstanding_loan_balance" widget="monetary"/> | Attachments: <field name="outstanding_attachment_balance" widget="monetary"/>)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 1. Employee Loans -->
+                    <div class="card mb-4 border rounded-3">
+                        <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-dark"><i class="fa fa-money text-primary me-2"/>Employee Loans</span>
+                            <span class="badge bg-primary"><field name="loan_count"/> Total</span>
+                        </div>
+                        <div class="card-body p-0">
+                            <field name="loan_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="loan_type"/>
+                                    <field name="loan_amount" widget="monetary"/>
+                                    <field name="installment_amount" widget="monetary"/>
+                                    <field name="installment_months"/>
+                                    <field name="state" widget="badge" 
+                                           decoration-success="state == 'approved'" 
+                                           decoration-warning="state in ('submitted', 'farm_approved', 'gm_pending')" 
+                                           decoration-danger="state == 'rejected'"/>
+                                </list>
+                            </field>
+                        </div>
+                    </div>
+
+                    <!-- 2. Salary Attachments -->
+                    <div class="card border rounded-3">
+                        <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-dark"><i class="fa fa-paperclip text-primary me-2"/>Salary Attachments &amp; Bank Loans</span>
+                            <span class="badge bg-secondary"><field name="active_attachments_count"/> Open</span>
+                        </div>
+                        <div class="card-body p-0">
+                            <field name="salary_attachment_ids" readonly="1">
+                                <list>
+                                    <field name="description"/>
+                                    <field name="loan_deduction_type"/>
+                                    <field name="total_amount" widget="monetary"/>
+                                    <field name="paid_amount" widget="monetary"/>
+                                    <field name="remaining_amount" widget="monetary"/>
+                                    <field name="monthly_amount" widget="monetary"/>
+                                    <field name="date_start"/>
+                                    <field name="state" widget="badge" 
+                                           decoration-info="state == 'open'" 
+                                           decoration-success="state == 'close'" 
+                                           decoration-muted="state == 'cancel'"/>
+                                </list>
+                            </field>
+                        </div>
+                    </div>
+
+                </page>
             </xpath>
         </field>
     </record>
