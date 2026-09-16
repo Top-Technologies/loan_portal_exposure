@@ -45,11 +45,13 @@ Empowers workforce employees to apply for and track employee loans directly from
         'views/hr_departure_wizard_views.xml',
         'views/mail_activity_schedule_views.xml',
         'views/res_config_settings_views.xml',
+        'views/approval_request_views.xml',
         'views/portal_templates.xml',
     ],
     'assets': {
         'web.assets_frontend': [
             'loan_portal_exposure/static/src/css/portal_loan.css',
+            'loan_portal_exposure/static/src/js/ethiopian_calendar.js',
             'loan_portal_exposure/static/src/js/portal_loan.js',
         ],
     },

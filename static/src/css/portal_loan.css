@@ -94,4 +94,58 @@
     display: none !important;
 }
 
+/* Duration Preset Buttons */
+.btn-duration-preset {
+    font-size: 0.78rem;
+    font-weight: 500;
+    border-radius: 6px;
+    transition: all 0.15s ease-in-out;
+}
+.btn-duration-preset:hover {
+    background-color: #e0e7ff;
+    color: #1e40af;
+    border-color: #93c5fd;
+}
+
+/* Ethiopian Dual Calendar Widget Styles */
+.eth-mini-calendar {
+    border-color: #e2e8f0;
+    background-color: #f8fafc;
+    max-width: 360px;
+    margin-top: 6px;
+}
+
+.eth-grid-weekdays div {
+    color: #64748b;
+    font-size: 0.72rem;
+    padding: 2px 0;
+}
+
+.eth-grid-days {
+    row-gap: 3px;
+}
+
+.eth-day-cell {
+    padding: 1px;
+}
+
+.eth-day-btn {
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.15s ease-in-out;
+    border: 1px solid transparent;
+}
+
+.eth-day-btn:hover {
+    background-color: #e0e7ff;
+    color: #3730a3;
+    border-color: #c7d2fe;
+}
+
+.eth-day-btn.active {
+    background-color: #0d6efd !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3) !important;
+}
+
 

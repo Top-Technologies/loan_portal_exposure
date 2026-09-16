@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Inherit Approval Request Form View for Loans -->
+    <record id="approval_request_view_form_inherit_loan" model="ir.ui.view">
+        <field name="name">approval.request.view.form.inherit.loan</field>
+        <field name="model">approval.request</field>
+        <field name="inherit_id" ref="approvals.approval_request_view_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Button Box: Stat button to Linked Loan -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_linked_loans"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-money"
+                        invisible="not loan_ids">
+                    <field name="loan_ids" widget="statinfo" string="Employee Loan"/>
+                </button>
+            </xpath>
+
+            <!-- Employee Selection under Request Owner (on behalf of any employee) -->
+            <xpath expr="//field[@name='request_owner_id']" position="after">
+                <field name="is_loan_category" invisible="1"/>
+                <field name="employee_id"
+                       widget="many2one_avatar_employee"
+                       invisible="not is_loan_category"
+                       required="is_loan_category"
+                       readonly="request_status != 'new'"/>
+            </xpath>
+
+            <!-- Amount attribute: lock amount for advance salary loans to equal 1 month salary -->
+            <xpath expr="//field[@name='amount']" position="attributes">
+                <attribute name="readonly">request_status != 'new' or (is_loan_category and loan_type == 'advance_salary')</attribute>
+                <attribute name="force_save">1</attribute>
+            </xpath>
+
+            <!-- Loan Details & Ethiopian Calendar Section -->
+            <xpath expr="//group[@name='request_main']" position="after">
+                <group name="loan_details_group" string="Loan Parameters &amp; Ethiopian Calendar (የብድር ዝርዝርና የቀን መቁጠሪያ)" invisible="not is_loan_category">
+                    <!-- Loan Category Guideline Banners -->
+                    <div class="alert alert-info py-2 px-3 small rounded-3 mb-2" invisible="not is_loan_category or loan_type != 'advance_salary'">
+                        <i class="fa fa-info-circle me-1"/> <strong>Advance 1-Month Salary Loan:</strong> Amount is fixed at 1 month base salary (auto-calculated from selected employee) and repaid in <strong>3 equal monthly installments</strong>.
+                    </div>
+                    <div class="alert alert-warning bg-warning bg-opacity-10 border-warning py-2 px-3 small rounded-3 mb-2" invisible="not is_loan_category or loan_type != 'high_amount'">
+                        <i class="fa fa-shield me-1 text-warning"/> <strong>High Monetary Amount Loan:</strong> Enter requested amount above and specify desired repayment duration in months.
+                    </div>
+
+                    <field name="loan_type" readonly="1" force_save="1" string="Loan Category"/>
+                    <field name="installment_months" readonly="request_status != 'new' or loan_type == 'advance_salary'" force_save="1"/>
+                    <field name="payment_date" string="Disbursement Date (ፈረንጆች)" readonly="request_status != 'new'"/>
+                    <field name="ethiopian_payment_date" readonly="1" string="Ethiopian Date (የኢትዮጵያ ቀን)"/>
+                    <label for="eth_month_loan" string="Pick in Ethiopian (በኢትዮጵያ የቀን መቁጠሪያ)" invisible="request_status != 'new'"/>
+                    <div class="o_row" invisible="request_status != 'new'">
+                        <field name="eth_month_loan" placeholder="ወር (Month)" class="oe_inline"/>
+                        <field name="eth_day_loan" placeholder="ቀን (Day)" class="oe_inline" style="width: 80px;"/>
+                        <field name="eth_year_loan" placeholder="ዓመት (Year)" class="oe_inline" style="width: 90px;"/>
+                    </div>
+                </group>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- Inherit Approval Request List View -->
+    <record id="approval_request_view_tree_inherit_loan" model="ir.ui.view">
+        <field name="name">approval.request.view.list.inherit.loan</field>
+        <field name="model">approval.request</field>
+        <field name="inherit_id" ref="approvals.approval_request_view_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='request_owner_id']" position="after">
+                <field name="employee_id" widget="many2one_avatar_employee" optional="show"/>
+                <field name="ethiopian_payment_date" string="Ethiopian Date" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

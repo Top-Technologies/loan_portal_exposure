@@ -8,6 +8,7 @@ from odoo.http import request
 from odoo.addons.portal.controllers.portal import CustomerPortal, pager as portal_pager
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.osv import expression
+from ..models.ethiopian_date_utils import ethiopian_to_gregorian, format_ethiopian_date
 
 
 class LoanCustomerPortal(CustomerPortal):
@@ -204,6 +205,14 @@ class LoanCustomerPortal(CustomerPortal):
             reason = post.get('reason', '').strip()
             attachment = request.httprequest.files.get('attachment')
 
+            # Ethiopian date conversion fallback if Gregorian date input was empty
+            if not payment_date_str and post.get('eth_year_loan') and post.get('eth_month_loan') and post.get('eth_day_loan'):
+                try:
+                    g_dt = ethiopian_to_gregorian(post['eth_year_loan'], post['eth_month_loan'], post['eth_day_loan'])
+                    payment_date_str = g_dt.strftime('%Y-%m-%d')
+                except Exception:
+                    pass
+
             if loan_type == 'advance_salary':
                 loan_amount = monthly_salary if monthly_salary > 0 else 0.0
                 installment_months = 3
@@ -219,27 +228,10 @@ class LoanCustomerPortal(CustomerPortal):
 
                 try:
                     installment_months = int(post.get('installment_months', '6'))
-                    if installment_months not in (6, 12):
-                        installment_months = 6
+                    if installment_months < 1:
+                        installment_months = 1
                 except (ValueError, TypeError):
                     installment_months = 6
-
-                # High monetary loan rules validation
-                if monthly_salary > 0 and loan_amount > 0:
-                    if loan_amount > max_loan_amount:
-                        errors.append(_("The requested loan amount (%(amt)s %(curr)s) exceeds the maximum allowed 4 times your monthly salary (Max: %(max_amt)s %(curr)s).") % {
-                            'amt': loan_amount,
-                            'curr': currency.symbol or '',
-                            'max_amt': max_loan_amount
-                        })
-                    
-                    monthly_ded = round(loan_amount / installment_months, 2)
-                    if monthly_ded > (max_monthly_installment + 0.01):
-                        errors.append(_("Monthly installment (%(ded)s %(curr)s/month) exceeds the maximum allowed 1/3 of your monthly salary (Max deduction: %(max_ded)s %(curr)s/month). Please choose 12 months duration or reduce the loan amount.") % {
-                            'ded': monthly_ded,
-                            'curr': currency.symbol or '',
-                            'max_ded': max_monthly_installment
-                        })
 
             if not reason:
                 errors.append(_("Please provide a reason or purpose for the loan request."))

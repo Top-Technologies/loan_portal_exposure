@@ -1,6 +1,17 @@
 # -*- coding: utf-8 -*-
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
+from .ethiopian_date_utils import (
+    format_ethiopian_date,
+    gregorian_to_ethiopian,
+    ethiopian_to_gregorian,
+    ETHIOPIAN_MONTHS_AMHARIC,
+    get_ethiopian_days_in_month,
+)
+
+ETHIOPIAN_MONTH_SELECTION = [
+    (str(i), f"{i} - {ETHIOPIAN_MONTHS_AMHARIC[i]}") for i in range(1, 14)
+]
 
 
 class HrLoan(models.Model):
@@ -48,6 +59,24 @@ class HrLoan(models.Model):
         string="Disbursement / Start Date",
         default=fields.Date.today,
         required=True
+    )
+    ethiopian_payment_date = fields.Char(
+        string="Ethiopian Disbursement Date",
+        compute="_compute_ethiopian_payment_date",
+        store=True,
+        help="Preferred disbursement date expressed in the Ethiopian calendar"
+    )
+    eth_month_loan = fields.Selection(
+        ETHIOPIAN_MONTH_SELECTION,
+        string="Ethiopian Month (ወር)"
+    )
+    eth_day_loan = fields.Integer(
+        string="Ethiopian Day (ቀን)",
+        default=1
+    )
+    eth_year_loan = fields.Integer(
+        string="Ethiopian Year (ዓመት)",
+        default=2018
     )
     installment_months = fields.Integer(
         string="Repayment Duration (Months)",
@@ -126,6 +155,44 @@ class HrLoan(models.Model):
         readonly=True
     )
 
+    @api.depends('payment_date')
+    def _compute_ethiopian_payment_date(self):
+        for loan in self:
+            if loan.payment_date:
+                loan.ethiopian_payment_date = format_ethiopian_date(loan.payment_date, lang='am')
+                ey, em, ed = gregorian_to_ethiopian(loan.payment_date)
+                loan.eth_year_loan = ey
+                loan.eth_month_loan = str(em)
+                loan.eth_day_loan = ed
+            else:
+                loan.ethiopian_payment_date = ''
+
+    @api.onchange('payment_date')
+    def _onchange_payment_date(self):
+        if self.payment_date:
+            ey, em, ed = gregorian_to_ethiopian(self.payment_date)
+            self.eth_year_loan = ey
+            self.eth_month_loan = str(em)
+            self.eth_day_loan = ed
+            self.ethiopian_payment_date = format_ethiopian_date(self.payment_date, lang='am')
+
+    @api.onchange('eth_year_loan', 'eth_month_loan', 'eth_day_loan')
+    def _onchange_ethiopian_date_parts(self):
+        if self.eth_year_loan and self.eth_month_loan and self.eth_day_loan:
+            try:
+                ey = int(self.eth_year_loan)
+                em = int(self.eth_month_loan)
+                ed = int(self.eth_day_loan)
+                max_days = get_ethiopian_days_in_month(ey, em)
+                if ed > max_days:
+                    ed = max_days
+                    self.eth_day_loan = ed
+                g_date = ethiopian_to_gregorian(ey, em, ed)
+                self.payment_date = g_date
+                self.ethiopian_payment_date = format_ethiopian_date(g_date, lang='am')
+            except Exception:
+                pass
+
     @api.depends('loan_amount', 'installment_months')
     def _compute_installment_amount(self):
         for loan in self:
@@ -143,43 +210,20 @@ class HrLoan(models.Model):
                 loan.farm_id = False
                 loan.farm_manager_id = False
 
-    @api.constrains('loan_type', 'loan_amount', 'installment_months', 'employee_id')
+    @api.constrains('loan_amount', 'installment_months')
     def _check_loan_rules(self):
         for loan in self:
-            if not loan.employee_id:
-                continue
-            monthly_salary = loan.employee_id.get_monthly_salary_estimate()
-            if loan.loan_type == 'advance_salary':
-                if loan.installment_months != 3:
-                    loan.installment_months = 3
-            elif loan.loan_type == 'high_amount':
-                if loan.installment_months not in (6, 12):
-                    raise ValidationError(_("Repayment duration for High Monetary Amount Loan must be either 6 months or 12 months."))
-                if monthly_salary > 0:
-                    max_allowed_loan = round(4 * monthly_salary, 2)
-                    if loan.loan_amount > max_allowed_loan:
-                        raise ValidationError(_(
-                            "The requested loan amount (%(amount)s %(curr)s) exceeds the maximum allowed limit of 4 times the monthly salary (Max: %(max_amt)s %(curr)s).",
-                            amount=loan.loan_amount,
-                            max_amt=max_allowed_loan,
-                            curr=loan.currency_id.symbol or ''
-                        ))
-                    max_monthly_deduction = round(monthly_salary / 3.0, 2)
-                    installment = round(loan.loan_amount / loan.installment_months, 2)
-                    if installment > (max_monthly_deduction + 0.01):
-                        raise ValidationError(_(
-                            "The monthly installment (%(installment)s %(curr)s/month) exceeds the maximum allowed limit of 1/3 of the monthly salary (Max deduction: %(max_ded)s %(curr)s/month). Please choose 12 months duration or reduce the loan amount.",
-                            installment=installment,
-                            max_ded=max_monthly_deduction,
-                            curr=loan.currency_id.symbol or ''
-                        ))
+            if loan.loan_amount <= 0:
+                raise ValidationError(_("Loan amount must be greater than zero."))
+            if loan.installment_months < 1:
+                raise ValidationError(_("Repayment duration must be at least 1 month."))
 
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get('name', _('New')) == _('New'):
                 vals['name'] = self.env['ir.sequence'].next_by_code('hr.loan') or _('New')
-            if vals.get('loan_type') == 'advance_salary':
+            if vals.get('loan_type') == 'advance_salary' and not vals.get('installment_months'):
                 vals['installment_months'] = 3
                 if not vals.get('loan_amount') and vals.get('employee_id'):
                     emp = self.env['hr.employee'].browse(vals['employee_id'])

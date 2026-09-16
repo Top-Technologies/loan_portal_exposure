@@ -5,3 +5,4 @@ from . import hr_departure_wizard
 from . import mail_activity_schedule
 from . import approval_request
 from . import res_config_settings
+from . import ethiopian_date_utils

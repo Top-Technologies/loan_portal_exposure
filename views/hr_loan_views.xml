@@ -48,6 +48,13 @@
                             <field name="loan_amount" widget="monetary"/>
                             <field name="currency_id" invisible="1"/>
                             <field name="payment_date"/>
+                            <field name="ethiopian_payment_date" readonly="1"/>
+                            <label for="eth_month_loan" string="Pick in Ethiopian (በኢትዮጵያ የቀን መቁጠሪያ)" invisible="state not in ('draft', 'waiting_farm_manager', 'waiting_gm')"/>
+                            <div class="o_row" invisible="state not in ('draft', 'waiting_farm_manager', 'waiting_gm')">
+                                <field name="eth_month_loan" placeholder="ወር (Month)" class="oe_inline"/>
+                                <field name="eth_day_loan" placeholder="ቀን (Day)" class="oe_inline" style="width: 80px;"/>
+                                <field name="eth_year_loan" placeholder="ዓመት (Year)" class="oe_inline" style="width: 90px;"/>
+                            </div>
                             <field name="installment_months" readonly="loan_type == 'advance_salary'"/>
                             <field name="installment_amount" widget="monetary"/>
                             <field name="approval_request_id" readonly="1" invisible="not approval_request_id"/>
@@ -96,6 +103,7 @@
                 <field name="installment_months"/>
                 <field name="installment_amount"/>
                 <field name="payment_date"/>
+                <field name="ethiopian_payment_date" optional="show"/>
                 <field name="farm_id"/>
                 <field name="state" widget="badge" decoration-info="state in ('waiting_farm_manager', 'waiting_gm')" decoration-success="state == 'approved'" decoration-danger="state == 'rejected'"/>
                 <field name="company_id" groups="base.group_multi_company" optional="hide"/>
