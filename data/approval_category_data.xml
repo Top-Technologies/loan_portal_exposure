@@ -11,6 +11,8 @@
             <field name="approval_minimum">1</field>
             <field name="manager_approval">required</field>
             <field name="sequence_code">LOAN-ADV</field>
+            <field name="automated_sequence">True</field>
+            <field name="sequence_id" ref="sequence_approval_advance_salary"/>
             <field name="description">Approval category for employee advance one month salary loans.</field>
         </record>
 
@@ -22,6 +24,8 @@
             <field name="has_reference">optional</field>
             <field name="approval_minimum">1</field>
             <field name="sequence_code">LOAN-HIGH</field>
+            <field name="automated_sequence">True</field>
+            <field name="sequence_id" ref="sequence_approval_high_amount"/>
             <field name="description">Approval category for high monetary amount employee loans routed to the General Manager.</field>
         </record>
 

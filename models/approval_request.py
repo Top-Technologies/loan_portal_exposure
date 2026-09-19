@@ -144,6 +144,29 @@ class ApprovalRequest(models.Model):
             if not self.installment_months or self.installment_months == 3:
                 self.installment_months = 12
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            category_id = vals.get('category_id')
+            if category_id:
+                category = self.env['approval.category'].browse(category_id)
+                if category and category.automated_sequence and not category.sequence_id:
+                    # Fix missing sequence in database so next_by_id() does not query id=false
+                    seq_code = category.sequence_code or 'LOAN'
+                    sequence = self.env['ir.sequence'].sudo().create({
+                        'name': f"Approval Sequence {seq_code}",
+                        'padding': 4,
+                        'prefix': f"{seq_code}/%(year)s/",
+                        'company_id': category.company_id.id if category.company_id else False,
+                    })
+                    category.sudo().sequence_id = sequence.id
+
+        created_requests = super().create(vals_list)
+        for req in created_requests:
+            if req.is_loan_category:
+                req._create_or_update_linked_loan()
+        return created_requests
+
     def _create_or_update_linked_loan(self):
         """ Creates or updates the linked hr.loan record for this approval request. """
         HrLoan = self.env['hr.loan'].sudo()
