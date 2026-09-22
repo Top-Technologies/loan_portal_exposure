@@ -9,7 +9,7 @@
             <field name="has_date">optional</field>
             <field name="has_reference">optional</field>
             <field name="approval_minimum">1</field>
-            <field name="manager_approval">required</field>
+            <field name="manager_approval">approver</field>
             <field name="sequence_code">LOAN-ADV</field>
             <field name="automated_sequence">True</field>
             <field name="sequence_id" ref="sequence_approval_advance_salary"/>

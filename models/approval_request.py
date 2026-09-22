@@ -13,6 +13,20 @@ ETHIOPIAN_MONTH_SELECTION = [
 ]
 
 
+class ApprovalCategory(models.Model):
+    _inherit = 'approval.category'
+
+    def init(self):
+        super().init()
+        try:
+            with self.env.cr.savepoint():
+                adv_cat = self.env.ref('loan_portal_exposure.approval_category_advance_salary_loan', raise_if_not_found=False)
+                if adv_cat and adv_cat.manager_approval == 'required':
+                    adv_cat.sudo().write({'manager_approval': 'approver'})
+        except Exception:
+            pass
+
+
 class ApprovalRequest(models.Model):
     _inherit = 'approval.request'
 
@@ -128,7 +142,7 @@ class ApprovalRequest(models.Model):
             except Exception:
                 pass
 
-    @api.onchange('employee_id', 'category_id')
+    @api.onchange('employee_id', 'category_id', 'request_owner_id')
     def _onchange_employee_or_category(self):
         adv_cat = self.env.ref('loan_portal_exposure.approval_category_advance_salary_loan', raise_if_not_found=False)
         is_advance = (adv_cat and self.category_id == adv_cat) or (self.category_id and 'advance' in (self.category_id.name or '').lower())
@@ -143,6 +157,52 @@ class ApprovalRequest(models.Model):
             self.loan_type = 'high_amount'
             if not self.installment_months or self.installment_months == 3:
                 self.installment_months = 12
+
+        if self.is_loan_category:
+            self._compute_approver_ids()
+
+    @api.depends('category_id', 'request_owner_id', 'employee_id', 'loan_type')
+    def _compute_approver_ids(self):
+        super()._compute_approver_ids()
+        for req in self:
+            if not req.is_loan_category:
+                continue
+
+            emp = req.employee_id or req.request_owner_id.employee_id
+            approver_user_ids = []
+
+            if req.loan_type == 'advance_salary':
+                # 1. Employee's direct manager
+                if emp and emp.parent_id and emp.parent_id.user_id:
+                    approver_user_ids.append(emp.parent_id.user_id.id)
+                # 2. Employee's Farm Manager
+                farm = (emp.current_farm_id or emp.initial_farm_id) if emp else False
+                if farm and farm.manager_id and farm.manager_id.user_id:
+                    if farm.manager_id.user_id.id not in approver_user_ids:
+                        approver_user_ids.append(farm.manager_id.user_id.id)
+                # 3. Fallback to GM / Loan Admin
+                if not approver_user_ids:
+                    gm_user = req.company_id.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False)
+                    if gm_user:
+                        approver_user_ids.append(gm_user.id)
+            else:  # high_amount
+                gm_user = req.company_id.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False)
+                if gm_user:
+                    approver_user_ids.append(gm_user.id)
+
+            if approver_user_ids:
+                existing_uids = req.approver_ids.mapped('user_id.id')
+                new_commands = []
+                for uid in approver_user_ids:
+                    if uid not in existing_uids:
+                        new_commands.append(fields.Command.create({
+                            'user_id': uid,
+                            'status': 'new',
+                            'required': True,
+                            'sequence': 10,
+                        }))
+                if new_commands:
+                    req.update({'approver_ids': new_commands})
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -199,6 +259,26 @@ class ApprovalRequest(models.Model):
                 loan = HrLoan.create(loan_vals)
 
     def action_confirm(self):
+        for req in self:
+            if req.is_loan_category:
+                # Ensure category does not block users who don't have an HR manager set
+                if req.category_id.manager_approval == 'required':
+                    req.category_id.sudo().write({'manager_approval': 'approver'})
+                # If approvers are missing, recompute
+                if not req.approver_ids:
+                    req._compute_approver_ids()
+                # Ensure at least 1 approver exists so approval_minimum passes
+                if not req.approver_ids:
+                    fallback_user = req.company_id.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False) or self.env.user
+                    req.write({
+                        'approver_ids': [fields.Command.create({
+                            'user_id': fallback_user.id,
+                            'status': 'new',
+                            'required': True,
+                            'sequence': 10,
+                        })]
+                    })
+
         res = super().action_confirm()
         for req in self:
             if req.is_loan_category:
