@@ -235,6 +235,12 @@ class HrLoan(models.Model):
     def action_submit(self):
         """ Submits the loan and routes to the appropriate approver """
         for loan in self:
+            if loan.loan_type == 'high_amount' and not loan.attachment_ids:
+                raise ValidationError(_(
+                    "Supporting document is mandatory for High Monetary Amount Loan requests.\n\n"
+                    "Please attach at least one supporting document before submitting."
+                ))
+
             if loan.loan_type == 'advance_salary':
                 loan.write({'state': 'waiting_farm_manager'})
                 # Create Approval Request in backend Approvals module if category exists
@@ -278,6 +284,11 @@ class HrLoan(models.Model):
             }
             app_req = ApprovalRequest.create(req_vals)
             self.approval_request_id = app_req.id
+
+            # Sync attachments to approval request
+            if self.attachment_ids:
+                for att in self.attachment_ids:
+                    att.copy({'res_model': 'approval.request', 'res_id': app_req.id})
 
             # Ensure specific approver is added
             if self.loan_type == 'advance_salary' and self.farm_manager_id and self.farm_manager_id.user_id:

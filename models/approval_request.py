@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import api, fields, models, _
+from odoo.exceptions import UserError, ValidationError
 from .ethiopian_date_utils import (
     ethiopian_to_gregorian,
     gregorian_to_ethiopian,
@@ -23,6 +24,9 @@ class ApprovalCategory(models.Model):
                 adv_cat = self.env.ref('loan_portal_exposure.approval_category_advance_salary_loan', raise_if_not_found=False)
                 if adv_cat and adv_cat.manager_approval == 'required':
                     adv_cat.sudo().write({'manager_approval': 'approver'})
+                high_cat = self.env.ref('loan_portal_exposure.approval_category_high_amount_loan', raise_if_not_found=False)
+                if high_cat and high_cat.requirer_document != 'required':
+                    high_cat.sudo().write({'requirer_document': 'required'})
         except Exception:
             pass
 
@@ -51,6 +55,41 @@ class ApprovalRequest(models.Model):
         ('advance_salary', 'Advance One Month Salary Loan'),
         ('high_amount', 'High Monetary Amount Loan'),
     ], string="Loan Type", compute="_compute_loan_type", store=True, readonly=True)
+
+    currency_id = fields.Many2one(
+        'res.currency',
+        string="Currency",
+        related='company_id.currency_id',
+        readonly=True
+    )
+    employee_monthly_salary = fields.Monetary(
+        string="Monthly Base Salary",
+        compute="_compute_loan_salary_compliance",
+        currency_field="currency_id",
+        store=True,
+        help="Monthly base wage/salary of the employee from active contract or employee record."
+    )
+    loan_standard_limit = fields.Monetary(
+        string="Standard 4-Month Limit",
+        compute="_compute_loan_salary_compliance",
+        currency_field="currency_id",
+        store=True,
+        help="Standard 4-month salary limit per company loan policy."
+    )
+    loan_standard_status = fields.Selection([
+        ('on_standard', 'On Standard'),
+        ('above_standard', 'Above Standard'),
+        ('no_salary', 'Salary Undetermined'),
+    ], string="Policy Assessment", compute="_compute_loan_salary_compliance", store=True)
+    loan_standard_note = fields.Char(
+        string="Policy Assessment Note",
+        compute="_compute_loan_salary_compliance",
+        store=True
+    )
+    loan_has_attachment = fields.Boolean(
+        string="Has Supporting Document",
+        compute="_compute_loan_has_attachment"
+    )
 
     installment_months = fields.Integer(
         string="Repayment Duration (Months)",
@@ -104,6 +143,48 @@ class ApprovalRequest(models.Model):
                 if not req.installment_months or req.installment_months == 3:
                     req.installment_months = 12
 
+    @api.depends('attachment_number', 'loan_ids', 'loan_ids.attachment_ids')
+    def _compute_loan_has_attachment(self):
+        for req in self:
+            count = req.attachment_number
+            if not count and req.loan_ids:
+                count = sum(len(loan.attachment_ids) for loan in req.loan_ids)
+            if not count and req.id:
+                count = self.env['ir.attachment'].sudo().search_count([
+                    ('res_model', '=', 'approval.request'),
+                    ('res_id', '=', req.id)
+                ])
+            req.loan_has_attachment = bool(count > 0)
+
+    @api.depends('employee_id', 'amount', 'category_id', 'loan_type', 'company_id')
+    def _compute_loan_salary_compliance(self):
+        for req in self:
+            currency = req.currency_id or self.env.company.currency_id
+            curr_symbol = currency.symbol or currency.name or ''
+            if req.is_loan_category and req.employee_id:
+                salary = req.employee_id.get_monthly_salary_estimate()
+                req.employee_monthly_salary = salary
+                standard_limit = round(salary * 4.0, 2)
+                req.loan_standard_limit = standard_limit
+
+                if salary <= 0:
+                    req.loan_standard_status = 'no_salary'
+                    req.loan_standard_note = _("Salary is not configured on employee contract / profile.")
+                elif req.amount <= standard_limit:
+                    req.loan_standard_status = 'on_standard'
+                    req.loan_standard_note = _("On Standard: Requested %(amt).2f %(curr)s is within the standard 4-month limit (%(limit).2f %(curr)s).",
+                                               amt=req.amount, limit=standard_limit, curr=curr_symbol)
+                else:
+                    diff = req.amount - standard_limit
+                    req.loan_standard_status = 'above_standard'
+                    req.loan_standard_note = _("Above Standard: Requested %(amt).2f %(curr)s exceeds the standard 4-month limit (%(limit).2f %(curr)s) by %(diff).2f %(curr)s.",
+                                               amt=req.amount, limit=standard_limit, diff=diff, curr=curr_symbol)
+            else:
+                req.employee_monthly_salary = 0.0
+                req.loan_standard_limit = 0.0
+                req.loan_standard_status = False
+                req.loan_standard_note = False
+
     @api.depends('payment_date')
     def _compute_ethiopian_payment_date(self):
         for req in self:
@@ -142,7 +223,7 @@ class ApprovalRequest(models.Model):
             except Exception:
                 pass
 
-    @api.onchange('employee_id', 'category_id', 'request_owner_id')
+    @api.onchange('employee_id', 'category_id', 'request_owner_id', 'amount')
     def _onchange_employee_or_category(self):
         adv_cat = self.env.ref('loan_portal_exposure.approval_category_advance_salary_loan', raise_if_not_found=False)
         is_advance = (adv_cat and self.category_id == adv_cat) or (self.category_id and 'advance' in (self.category_id.name or '').lower())
@@ -158,6 +239,7 @@ class ApprovalRequest(models.Model):
             if not self.installment_months or self.installment_months == 3:
                 self.installment_months = 12
 
+        self._compute_loan_salary_compliance()
         if self.is_loan_category:
             self._compute_approver_ids()
 
@@ -261,6 +343,15 @@ class ApprovalRequest(models.Model):
     def action_confirm(self):
         for req in self:
             if req.is_loan_category:
+                # Mandatory Supporting Document Check for High Monetary Amount Loans
+                if req.loan_type == 'high_amount':
+                    req._compute_loan_has_attachment()
+                    if not req.loan_has_attachment:
+                        raise UserError(_(
+                            "Supporting document is mandatory for High Monetary Amount Loan requests.\n\n"
+                            "Please attach at least one document (via the 'Attach Document' button) before confirming / submitting."
+                        ))
+
                 # Ensure category does not block users who don't have an HR manager set
                 if req.category_id.manager_approval == 'required':
                     req.category_id.sudo().write({'manager_approval': 'approver'})

@@ -22,6 +22,7 @@
             <field name="has_amount">required</field>
             <field name="has_date">optional</field>
             <field name="has_reference">optional</field>
+            <field name="requirer_document">required</field>
             <field name="approval_minimum">1</field>
             <field name="sequence_code">LOAN-HIGH</field>
             <field name="automated_sequence">True</field>

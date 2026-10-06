@@ -236,6 +236,9 @@ class LoanCustomerPortal(CustomerPortal):
             if not reason:
                 errors.append(_("Please provide a reason or purpose for the loan request."))
 
+            if loan_type == 'high_amount' and not (attachment and getattr(attachment, 'filename', False)):
+                errors.append(_("Supporting document is mandatory for High Monetary Amount Loan requests. Please upload a supporting document."))
+
             if not errors:
                 try:
                     loan_vals = {

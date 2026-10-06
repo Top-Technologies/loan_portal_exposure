@@ -216,6 +216,7 @@
                                             <th>Category</th>
                                             <th>Amount</th>
                                             <th>Repayment Plan</th>
+                                            <th>Reason</th>
                                             <th>Date</th>
                                             <th>Status</th>
                                             <th class="text-end">Actions</th>
@@ -230,12 +231,12 @@
                                                 <td>
                                                     <t t-if="l.loan_type == 'advance_salary'">
                                                         <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">
-                                                            <i class="fa fa-bolt me-1"/>Advance Salary
+                                                             <i class="fa fa-bolt me-1"/>Advance Salary
                                                         </span>
                                                     </t>
                                                     <t t-else="">
                                                         <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
-                                                            <i class="fa fa-university me-1"/>High Amount
+                                                             <i class="fa fa-university me-1"/>High Amount
                                                         </span>
                                                     </t>
                                                 </td>
@@ -245,6 +246,9 @@
                                                 <td>
                                                     <span class="fw-semibold text-dark"><t t-esc="l.installment_months"/> Months</span>
                                                     <span class="text-muted small d-block">(<t t-esc="l.installment_amount"/> <t t-esc="l.currency_id.symbol"/>/mo)</span>
+                                                </td>
+                                                <td>
+                                                    <span class="text-truncate d-inline-block text-muted" style="max-width: 180px;" t-att-title="l.reason" t-esc="l.reason or '-'"/>
                                                 </td>
                                                 <td>
                                                     <span class="text-dark fw-semibold"><t t-esc="l.payment_date"/></span>
@@ -521,9 +525,15 @@
 
                                     <!-- 5. Attachment / Document -->
                                     <div class="mb-4">
-                                        <label for="attachment" class="form-label fw-bold">Supporting Documents (Optional)</label>
+                                        <label for="attachment" class="form-label fw-bold">
+                                            Supporting Documents 
+                                            <span id="attachment_mandatory_marker" class="text-danger" style="display: none;">* (Mandatory for High Amount Loan)</span>
+                                            <span id="attachment_optional_marker" class="text-muted fw-normal small">(Optional)</span>
+                                        </label>
                                         <input class="form-control" type="file" id="attachment" name="attachment" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"/>
-                                        <div class="form-text text-muted small">Upload bills, receipts, or justification document (Max 10MB).</div>
+                                        <div class="form-text text-muted small" id="attachment_help_text">
+                                            Upload bills, receipts, or justification document (Max 10MB).
+                                        </div>
                                     </div>
 
                                     <!-- 6. Approval Routing Preview -->
@@ -981,6 +991,7 @@
                                             <th>Category</th>
                                             <th>Amount</th>
                                             <th>Repayment Plan</th>
+                                            <th>Reason / Purpose</th>
                                             <th>Status</th>
                                             <th class="text-end">Actions</th>
                                         </tr>
@@ -1013,6 +1024,9 @@
                                                 <td>
                                                     <span class="fw-semibold text-dark"><t t-esc="req.installment_months"/> Months</span>
                                                     <span class="text-muted small d-block">(<t t-esc="req.installment_amount"/> <t t-esc="req.currency_id.symbol"/>/mo)</span>
+                                                </td>
+                                                <td>
+                                                    <span class="text-truncate d-inline-block text-muted" style="max-width: 180px;" t-att-title="req.reason" t-esc="req.reason or '-'"/>
                                                 </td>
                                                 <td>
                                                     <t t-if="req.state == 'approved'">
@@ -1064,6 +1078,9 @@
                                                             </div>
                                                             <div class="modal-body p-4 text-start">
                                                                 <p>Please enter the reason for rejecting loan application for <strong><t t-esc="req.employee_id.name"/></strong>:</p>
+                                                                <div class="alert alert-light border small mb-3">
+                                                                    <strong>Requester's Reason:</strong> <t t-esc="req.reason or 'No reason provided.'"/>
+                                                                </div>
                                                                 <div class="mb-3">
                                                                     <label class="form-label fw-bold">Rejection Reason</label>
                                                                     <textarea class="form-control" name="rejection_reason" rows="3" required="required" placeholder="Reason for refusal..."></textarea>

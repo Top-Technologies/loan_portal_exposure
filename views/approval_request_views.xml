@@ -42,8 +42,55 @@
                     <div class="alert alert-info py-2 px-3 small rounded-3 mb-2" invisible="not is_loan_category or loan_type != 'advance_salary'">
                         <i class="fa fa-info-circle me-1"/> <strong>Advance 1-Month Salary Loan:</strong> Amount is fixed at 1 month base salary (auto-calculated from selected employee) and repaid in <strong>3 equal monthly installments</strong>.
                     </div>
-                    <div class="alert alert-warning bg-warning bg-opacity-10 border-warning py-2 px-3 small rounded-3 mb-2" invisible="not is_loan_category or loan_type != 'high_amount'">
-                        <i class="fa fa-shield me-1 text-warning"/> <strong>High Monetary Amount Loan:</strong> Enter requested amount above and specify desired repayment duration in months.
+                    <div class="alert alert-warning bg-warning bg-opacity-10 border-warning py-3 px-3 rounded-3 mb-3 shadow-xs" invisible="not is_loan_category or loan_type != 'high_amount'">
+                        <field name="currency_id" invisible="1"/>
+                        <field name="loan_has_attachment" invisible="1"/>
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                            <div class="fw-bold text-dark">
+                                <i class="fa fa-shield me-1 text-warning"/> High Monetary Amount Loan Analysis
+                            </div>
+                            <div>
+                                <field name="loan_standard_status" widget="badge"
+                                       decoration-success="loan_standard_status == 'on_standard'"
+                                       decoration-danger="loan_standard_status == 'above_standard'"
+                                       decoration-warning="loan_standard_status == 'no_salary'"/>
+                            </div>
+                        </div>
+
+                        <div class="row g-2 pt-2 border-top border-warning border-opacity-25 small">
+                            <div class="col-12 col-md-6">
+                                <span class="text-muted">Employee Monthly Salary:</span>
+                                <strong class="ms-1 text-dark">
+                                    <field name="employee_monthly_salary" widget="monetary" readonly="1" class="d-inline"/>
+                                </strong>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <span class="text-muted">Standard 4-Month Limit:</span>
+                                <strong class="ms-1 text-dark">
+                                    <field name="loan_standard_limit" widget="monetary" readonly="1" class="d-inline"/>
+                                </strong>
+                            </div>
+                            <div class="col-12 mt-1">
+                                <span class="text-muted">Policy Assessment:</span>
+                                <field name="loan_standard_note" readonly="1" class="fw-bold ms-1 d-inline"/>
+                            </div>
+                        </div>
+
+                        <div class="mt-2 pt-2 border-top border-warning border-opacity-25 d-flex align-items-center justify-content-between flex-wrap gap-2 small">
+                            <div>
+                                <i class="fa fa-paperclip text-muted me-1"/>
+                                <span class="fw-bold text-dark">Supporting Document:</span>
+                                <span class="text-danger fw-semibold ms-1">(Mandatory for High Amount Loan)</span>
+                            </div>
+                            <div>
+                                <span class="badge bg-success text-white py-1 px-2" invisible="not loan_has_attachment">
+                                    <i class="fa fa-check me-1"/> Attached (<field name="attachment_number" readonly="1" class="d-inline"/>)
+                                </span>
+                                <span class="badge bg-danger text-white py-1 px-2" invisible="loan_has_attachment">
+                                    <i class="fa fa-exclamation-triangle me-1"/> Required - Not Yet Attached
+                                </span>
+                            </div>
+                        </div>
                     </div>
 
                     <field name="loan_type" readonly="1" force_save="1" string="Loan Category"/>

@@ -13,6 +13,9 @@ function updateLoanType(type) {
     const installmentSelect = document.getElementById('installment_months');
     const routingAdvance = document.getElementById('routing_text_advance');
     const routingHigh = document.getElementById('routing_text_high');
+    const attachmentInput = document.getElementById('attachment');
+    const attachmentMandatory = document.getElementById('attachment_mandatory_marker');
+    const attachmentOptional = document.getElementById('attachment_optional_marker');
 
     const selectedType = type || (radioHigh && radioHigh.checked ? 'high_amount' : 'advance_salary');
 
@@ -34,6 +37,15 @@ function updateLoanType(type) {
             loanAmountInput.value = '';
         }
 
+        if (attachmentMandatory) attachmentMandatory.style.display = 'none';
+        if (attachmentOptional) attachmentOptional.style.display = 'inline';
+        if (attachmentInput) {
+            attachmentInput.required = false;
+            attachmentInput.classList.remove('is-invalid');
+            const errorMsg = document.getElementById('attachment_error_msg');
+            if (errorMsg) errorMsg.style.display = 'none';
+        }
+
         if (routingAdvance) routingAdvance.style.display = 'block';
         if (routingHigh) routingHigh.style.display = 'none';
     } else {
@@ -52,6 +64,12 @@ function updateLoanType(type) {
         if (loanAmountInput) {
             loanAmountInput.required = true;
             loanAmountInput.focus();
+        }
+
+        if (attachmentMandatory) attachmentMandatory.style.display = 'inline';
+        if (attachmentOptional) attachmentOptional.style.display = 'none';
+        if (attachmentInput) {
+            attachmentInput.required = true;
         }
 
         if (routingAdvance) routingAdvance.style.display = 'none';
@@ -145,6 +163,17 @@ function initLoanForm() {
         });
     });
 
+    const attachmentInput = document.getElementById('attachment');
+    if (attachmentInput) {
+        attachmentInput.addEventListener('change', () => {
+            if (attachmentInput.files && attachmentInput.files.length > 0) {
+                attachmentInput.classList.remove('is-invalid');
+                const errorMsg = document.getElementById('attachment_error_msg');
+                if (errorMsg) errorMsg.style.display = 'none';
+            }
+        });
+    }
+
     // Determine initial state from pre-checked radio or default
     if (radioHigh && radioHigh.checked) {
         updateLoanType('high_amount');
@@ -157,10 +186,33 @@ function initLoanForm() {
 
     if (loanForm) {
         loanForm.addEventListener('submit', (e) => {
-            if (!loanForm.checkValidity()) return;
-
             const radioHigh = document.getElementById('loan_type_high');
             const isHigh = radioHigh && radioHigh.checked;
+
+            // Enforce mandatory attachment for High Monetary Amount Loan
+            if (isHigh) {
+                const attachInput = document.getElementById('attachment');
+                if (attachInput && (!attachInput.files || attachInput.files.length === 0)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    attachInput.classList.add('is-invalid');
+                    attachInput.focus();
+                    let errorMsg = document.getElementById('attachment_error_msg');
+                    if (!errorMsg) {
+                        errorMsg = document.createElement('div');
+                        errorMsg.id = 'attachment_error_msg';
+                        errorMsg.className = 'invalid-feedback d-block fw-bold mt-1';
+                        errorMsg.innerText = 'Supporting document is mandatory for High Monetary Amount Loan requests. Please attach a document.';
+                        attachInput.parentNode.appendChild(errorMsg);
+                    } else {
+                        errorMsg.style.display = 'block';
+                    }
+                    return;
+                }
+            }
+
+            if (!loanForm.checkValidity()) return;
+
             const amount = parseFloat(loanAmountInput ? loanAmountInput.value : 0) || 0.0;
             const salary = parseFloat(loanAmountInput ? loanAmountInput.getAttribute('data-salary') : 0) || 0.0;
             const maxLoan = parseFloat(loanAmountInput ? loanAmountInput.getAttribute('data-max-loan') : 0) || (4 * salary);

@@ -81,11 +81,7 @@
                         </page>
                     </notebook>
                 </sheet>
-                <div class="oe_chatter">
-                    <field name="message_follower_ids"/>
-                    <field name="activity_ids"/>
-                    <field name="message_ids"/>
-                </div>
+                <chatter reload_on_follower="True"/>
             </form>
         </field>
     </record>
@@ -139,6 +135,7 @@
         <field name="name">Employee Loans</field>
         <field name="res_model">hr.loan</field>
         <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_hr_loan_tree"/>
         <field name="search_view_id" ref="view_hr_loan_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
@@ -148,6 +145,20 @@
                 Manage advance salary loans and high monetary amount loans submitted via portal or backend.
             </p>
         </field>
+    </record>
+
+    <record id="action_hr_loan_view_tree" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_hr_loan_tree"/>
+        <field name="act_window_id" ref="action_hr_loan"/>
+    </record>
+
+    <record id="action_hr_loan_view_form" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_hr_loan_form"/>
+        <field name="act_window_id" ref="action_hr_loan"/>
     </record>
 
     <!-- Menu Items -->
