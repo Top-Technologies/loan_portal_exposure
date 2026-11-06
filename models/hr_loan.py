@@ -103,12 +103,21 @@ class HrLoan(models.Model):
     state = fields.Selection([
         ('draft', 'Draft'),
         ('waiting_farm_manager', 'Waiting Farm Manager Approval'),
+        ('waiting_hr', 'Waiting HR Approval'),
         ('waiting_gm', 'Waiting GM Approval'),
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
         ('cancelled', 'Cancelled'),
         ('paid', 'Fully Repaid'),
     ], string="Status", default='draft', store=True, copy=False)
+
+    designated_approver_user_id = fields.Many2one(
+        'res.users',
+        string="Designated Approver",
+        compute="_compute_designated_approver_user",
+        store=True,
+        help="The specific manager/officer responsible for reviewing this loan application."
+    )
 
     farm_id = fields.Many2one(
         'farm.farm',
@@ -232,6 +241,57 @@ class HrLoan(models.Model):
                         vals['loan_amount'] = wage
         return super().create(vals_list)
 
+    def _get_loan_designated_approver_user(self):
+        """
+        Determines the designated approver user for this loan based on loan_type and employee classification:
+        - 1-Month Advance Salary:
+          - Head Office ('head_office'): Head Office HR Officer (company.loan_ho_hr_user_id)
+          - CPW ('cpw'): CPW HR Officer (company.loan_cpw_hr_user_id)
+          - Farm ('permanent', 'temporary', 'zemach'): Assigned Farm Manager (farm_manager_id.user_id)
+        - High Monetary Amount:
+          - Head Office ('head_office'): General Manager (company.loan_gm_user_id)
+          - CPW ('cpw'): General Manager (company.loan_gm_user_id)
+          - Farm ('permanent', 'temporary', 'zemach'): Assigned Farm Manager (farm_manager_id.user_id)
+        """
+        self.ensure_one()
+        emp = self.employee_id
+        emp_type = getattr(emp, 'farm_employee_type', False) if emp else False
+        company = self.company_id or self.env.company
+
+        if self.loan_type == 'advance_salary':
+            if emp_type == 'head_office':
+                return company.loan_ho_hr_user_id or (emp.parent_id.user_id if emp and emp.parent_id else False) or company.loan_hr_manager_id
+            elif emp_type == 'cpw':
+                return company.loan_cpw_hr_user_id or (emp.parent_id.user_id if emp and emp.parent_id else False) or company.loan_hr_manager_id
+            else:
+                # Farm employee advance goes to Farm Manager
+                if self.farm_manager_id and self.farm_manager_id.user_id:
+                    return self.farm_manager_id.user_id
+                if emp:
+                    fm = emp.get_assigned_farm_manager()
+                    if fm and fm.user_id:
+                        return fm.user_id
+                return company.loan_gm_user_id or company.loan_hr_manager_id
+        else:
+            # High Monetary Amount:
+            # Check if the approval category rule has configured approver users
+            category = company.loan_high_amount_category_id or self.env.ref('loan_portal_exposure.approval_category_high_amount_loan', raise_if_not_found=False)
+            if not category and self.approval_request_id:
+                category = self.approval_request_id.category_id
+            if category and category.approver_ids:
+                cat_approver_users = category.approver_ids.mapped('user_id').filtered(lambda u: u.active)
+                if cat_approver_users:
+                    if company.loan_gm_user_id and company.loan_gm_user_id in cat_approver_users:
+                        return company.loan_gm_user_id
+                    return cat_approver_users[0]
+            # Default to General Manager (GM) for all employees (Head Office, CPW, Farm)
+            return company.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False)
+
+    @api.depends('employee_id', 'loan_type', 'company_id', 'farm_id', 'farm_manager_id')
+    def _compute_designated_approver_user(self):
+        for loan in self:
+            loan.designated_approver_user_id = loan._get_loan_designated_approver_user()
+
     def action_submit(self):
         """ Submits the loan and routes to the appropriate approver """
         for loan in self:
@@ -241,19 +301,23 @@ class HrLoan(models.Model):
                     "Please attach at least one supporting document before submitting."
                 ))
 
-            if loan.loan_type == 'advance_salary':
-                loan.write({'state': 'waiting_farm_manager'})
-                # Create Approval Request in backend Approvals module if category exists
-                loan._create_approval_request_record()
-                # Notify Farm Manager
-                loan._notify_farm_manager()
-            else:
-                loan.write({'state': 'waiting_gm'})
-                # Create Approval Request in backend Approvals module for GM
-                loan._create_approval_request_record()
-                # Notify General Manager
-                loan._notify_gm()
+            emp = loan.employee_id
+            emp_type = getattr(emp, 'farm_employee_type', False) if emp else False
 
+            if loan.loan_type == 'advance_salary':
+                if emp_type in ('head_office', 'cpw', 'jimma_head_office'):
+                    loan.write({'state': 'waiting_hr'})
+                else:
+                    loan.write({'state': 'waiting_farm_manager'})
+            else:
+                # High Monetary Amount always routes to GM / rule approver regardless of employee type
+                loan.write({'state': 'waiting_gm'})
+
+            # Create Approval Request in backend Approvals module if category exists
+            loan._create_approval_request_record()
+
+            # Notify designated approver and employee
+            loan._notify_designated_approver()
             loan._send_mail_safe('loan_portal_exposure.email_template_loan_submitted_employee')
         return True
 
@@ -290,21 +354,23 @@ class HrLoan(models.Model):
                 for att in self.attachment_ids:
                     att.copy({'res_model': 'approval.request', 'res_id': app_req.id})
 
-            # Ensure specific approver is added
-            if self.loan_type == 'advance_salary' and self.farm_manager_id and self.farm_manager_id.user_id:
-                app_req.approver_ids = [(0, 0, {
-                    'user_id': self.farm_manager_id.user_id.id,
-                    'status': 'pending',
-                    'required': True,
-                })]
-            elif self.loan_type == 'high_amount':
-                gm_user = self.company_id.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False)
-                if gm_user:
-                    app_req.approver_ids = [(0, 0, {
-                        'user_id': gm_user.id,
-                        'status': 'pending',
-                        'required': True,
-                    })]
+            # Check if category already has configured approvers
+            if self.loan_type == 'high_amount' and category.approver_ids:
+                # Keep category approvers; ensure each is pending
+                for approver_line in app_req.approver_ids:
+                    approver_line.status = 'pending'
+            else:
+                approver_user = self._get_loan_designated_approver_user()
+                if approver_user:
+                    app_req.approver_ids = [
+                        (5, 0, 0),
+                        (0, 0, {
+                            'user_id': approver_user.id,
+                            'status': 'pending',
+                            'required': True,
+                            'sequence': 10,
+                        })
+                    ]
 
             # Post clean reference message without HTML tags or repayment
             app_req.message_post(
@@ -320,47 +386,21 @@ class HrLoan(models.Model):
             )
 
     def action_portal_farm_manager_approve(self):
-        """ Executed by Farm Manager to approve advance salary loans """
-        for loan in self:
-            if loan.state != 'waiting_farm_manager':
-                raise UserError(_("This loan is not pending Farm Manager approval."))
+        """ Executed by Farm Manager to approve farm loans """
+        return self._do_approve_loan(approver_role="Farm Manager")
 
-            loan.sudo().write({
-                'state': 'approved',
-                'approved_by_id': self.env.user.id,
-                'approval_date': fields.Datetime.now(),
-            })
-
-            # Auto create & sync open Salary Attachment and contract deduction
-            loan._create_or_sync_salary_attachment()
-
-            # Sync linked approval request
-            if loan.approval_request_id:
-                try:
-                    loan.approval_request_id.sudo().action_approve()
-                except Exception:
-                    pass
-
-            # Log clean chatter note
-            loan.sudo().message_post(
-                body=_("Approved by Farm Manager: %s on %s.") % (
-                    self.env.user.name,
-                    fields.Datetime.to_string(fields.Datetime.now())
-                ),
-                message_type='comment',
-                subtype_xmlid='mail.mt_comment'
-            )
-
-            # Notify employee
-            loan._send_mail_safe('loan_portal_exposure.email_template_loan_approved_employee')
-
-        return True
+    def action_portal_hr_approve(self):
+        """ Executed by HR Officer to approve Head Office / CPW advance salary loans """
+        return self._do_approve_loan(approver_role="HR Officer")
 
     def action_portal_gm_approve(self):
         """ Executed by GM to approve High Monetary Amount Loans """
+        return self._do_approve_loan(approver_role="General Manager (GM)")
+
+    def _do_approve_loan(self, approver_role="Approver"):
         for loan in self:
-            if loan.state != 'waiting_gm':
-                raise UserError(_("This loan is not pending GM approval."))
+            if loan.state not in ('waiting_farm_manager', 'waiting_hr', 'waiting_gm'):
+                raise UserError(_("This loan is not pending approval."))
 
             loan.sudo().write({
                 'state': 'approved',
@@ -380,7 +420,8 @@ class HrLoan(models.Model):
 
             # Log clean chatter note
             loan.sudo().message_post(
-                body=_("Approved by General Manager (GM): %s on %s.") % (
+                body=_("Approved by %s: %s on %s.") % (
+                    approver_role,
                     self.env.user.name,
                     fields.Datetime.to_string(fields.Datetime.now())
                 ),
@@ -388,8 +429,9 @@ class HrLoan(models.Model):
                 subtype_xmlid='mail.mt_comment'
             )
 
-            # Send automated confirmation email to HR Manager and Finance Manager
-            loan._notify_hr_and_finance_managers()
+            # Send automated confirmation email to HR Manager and Finance Manager for GM approved loans
+            if loan.loan_type == 'high_amount' and loan.approved_by_id == loan.company_id.loan_gm_user_id:
+                loan._notify_hr_and_finance_managers()
 
             # Notify employee
             loan._send_mail_safe('loan_portal_exposure.email_template_loan_approved_employee')
@@ -407,8 +449,8 @@ class HrLoan(models.Model):
             if not loan.employee_id or loan.loan_amount <= 0:
                 continue
 
-            # Link to Category 2 Loan/Advance deduction on contract ('advance')
-            ded_type = 'advance'
+            # Link to Category 2 Loan/Advance deduction on contract
+            ded_type = 'long_term_loan' if loan.loan_type == 'high_amount' else 'advance'
 
             vals = {
                 'employee_ids': [(6, 0, [loan.employee_id.id])],
@@ -484,7 +526,7 @@ class HrLoan(models.Model):
     def action_portal_cancel(self):
         """ Executed by employee to cancel pending request """
         for loan in self:
-            if loan.state not in ['draft', 'waiting_farm_manager', 'waiting_gm']:
+            if loan.state not in ['draft', 'waiting_farm_manager', 'waiting_hr', 'waiting_gm']:
                 raise UserError(_("You can only cancel pending loan requests."))
 
             loan.sudo().write({'state': 'cancelled'})
@@ -507,6 +549,23 @@ class HrLoan(models.Model):
 
         return True
 
+    def _notify_designated_approver(self):
+        """ Dispatches notification email based on pending approval state """
+        for loan in self:
+            if loan.state == 'waiting_farm_manager':
+                loan._notify_farm_manager()
+            elif loan.state == 'waiting_gm':
+                loan._notify_gm()
+            elif loan.state == 'waiting_hr':
+                loan._notify_hr()
+
+    def _notify_hr(self):
+        """ Dispatches notification email to the designated HR Officer """
+        for loan in self:
+            hr_user = loan.designated_approver_user_id
+            if hr_user:
+                loan._send_mail_safe('loan_portal_exposure.email_template_loan_submitted_hr')
+
     def _notify_farm_manager(self):
         """ Dispatches notification email to the Farm Manager """
         for loan in self:
@@ -515,10 +574,10 @@ class HrLoan(models.Model):
                 loan._send_mail_safe('loan_portal_exposure.email_template_loan_submitted_farm_manager')
 
     def _notify_gm(self):
-        """ Dispatches notification email to the General Manager """
+        """ Dispatches notification email to the General Manager or designated rule approver """
         for loan in self:
-            gm_user = loan.company_id.loan_gm_user_id
-            if gm_user:
+            approver_user = loan.designated_approver_user_id or loan.company_id.loan_gm_user_id
+            if approver_user:
                 loan._send_mail_safe('loan_portal_exposure.email_template_loan_submitted_gm')
 
     def _notify_hr_and_finance_managers(self):

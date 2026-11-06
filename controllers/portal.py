@@ -39,15 +39,46 @@ class LoanCustomerPortal(CustomerPortal):
         return request.env.user.get_portal_employee() if hasattr(request.env.user, 'get_portal_employee') else request.env['hr.employee'].sudo().search([('user_id', '=', request.env.user.id)], limit=1)
 
     def _get_to_approve_domain(self, user, employee):
-        """ Builds domain for loans waiting for user's approval (as Farm Manager or GM) """
+        """ Builds domain for loans waiting for user's approval (as Farm Manager, HR Officer, or GM) """
         domains = []
-        is_gm = user.company_id.loan_gm_user_id.id == user.id or user.has_group('base.group_system')
+        is_admin = user.has_group('base.group_system')
+        is_gm = user.company_id.loan_gm_user_id.id == user.id or is_admin
+        is_ho_hr = user.company_id.loan_ho_hr_user_id.id == user.id or is_admin
+        is_cpw_hr = user.company_id.loan_cpw_hr_user_id.id == user.id or is_admin
+
+        # 0. Direct designated approver match
+        domains.append([
+            ('designated_approver_user_id', '=', user.id),
+            ('state', 'in', ('waiting_hr', 'waiting_farm_manager', 'waiting_gm'))
+        ])
+
+        # Match if user is configured as an approver on high monetary rule or approval request
+        domains.append([
+            ('state', '=', 'waiting_gm'),
+            '|',
+            ('approval_request_id.approver_ids.user_id', '=', user.id),
+            ('approval_request_id.category_id.approver_ids.user_id', '=', user.id)
+        ])
 
         # 1. GM domain: high monetary amount loans waiting for GM
         if is_gm:
             domains.append([('state', '=', 'waiting_gm')])
 
-        # 2. Farm Manager domain: advance salary loans from employees in managed farms or subordinates
+        # 2. Head Office HR Officer domain: advance salary loans waiting for HR for head_office employees
+        if is_ho_hr:
+            domains.append([
+                ('state', '=', 'waiting_hr'),
+                ('employee_id.farm_employee_type', 'in', ('head_office', 'jimma_head_office'))
+            ])
+
+        # 3. CPW HR Officer domain: advance salary loans waiting for HR for CPW employees
+        if is_cpw_hr:
+            domains.append([
+                ('state', '=', 'waiting_hr'),
+                ('employee_id.farm_employee_type', '=', 'cpw')
+            ])
+
+        # 4. Farm Manager domain: advance salary or farm loans from employees in managed farms or subordinates
         if employee:
             managed_farms = request.env['farm.farm'].sudo().search([('manager_id', '=', employee.id)])
             subordinates = employee.get_subordinate_employees() if hasattr(employee, 'get_subordinate_employees') else request.env['hr.employee'].sudo().search([('parent_id', '=', employee.id)])
@@ -61,6 +92,9 @@ class LoanCustomerPortal(CustomerPortal):
             if fm_criteria:
                 farm_filter = expression.OR([[(c[0], c[1], c[2])] for c in fm_criteria])
                 domains.append(expression.AND([[('state', '=', 'waiting_farm_manager')], farm_filter]))
+
+        if is_admin:
+            domains.append([('state', 'in', ('waiting_hr', 'waiting_farm_manager', 'waiting_gm'))])
 
         if not domains:
             return []
@@ -82,20 +116,41 @@ class LoanCustomerPortal(CustomerPortal):
 
         is_owner = employee and loan.employee_id.id == employee.id
         is_gm = user.company_id.loan_gm_user_id.id == user.id
+        is_ho_hr = user.company_id.loan_ho_hr_user_id.id == user.id
+        is_cpw_hr = user.company_id.loan_cpw_hr_user_id.id == user.id
+        is_designated_approver = loan.designated_approver_user_id.id == user.id
+        is_rule_approver = bool(
+            loan.approval_request_id and (
+                user.id in loan.approval_request_id.approver_ids.mapped('user_id.id') or
+                user.id in loan.approval_request_id.category_id.approver_ids.mapped('user_id.id')
+            )
+        )
         is_farm_manager = employee and (
             (loan.farm_id and loan.farm_id.manager_id.id == employee.id) or
             (loan.farm_manager_id and loan.farm_manager_id.id == employee.id) or
             (loan.employee_id.parent_id and loan.employee_id.parent_id.id == employee.id)
         )
 
+        emp_type = getattr(loan.employee_id, 'farm_employee_type', False)
+
         if mode == 'read':
-            if not (is_owner or is_gm or is_farm_manager):
+            if not (is_owner or is_gm or is_ho_hr or is_cpw_hr or is_farm_manager or is_designated_approver or is_rule_approver):
                 raise Forbidden(_("You do not have permission to view this loan request."))
         elif mode == 'approve':
-            if loan.loan_type == 'advance_salary' and not (is_farm_manager or is_gm):
-                raise Forbidden(_("Only the Farm Manager can approve this Advance Salary Loan."))
-            elif loan.loan_type == 'high_amount' and not is_gm:
-                raise Forbidden(_("Only the General Manager (GM) can approve this High Amount Loan."))
+            if loan.state not in ('waiting_hr', 'waiting_farm_manager', 'waiting_gm'):
+                raise Forbidden(_("This loan is not pending approval."))
+            if not (is_designated_approver or is_rule_approver):
+                if loan.state == 'waiting_hr':
+                    if emp_type in ('head_office', 'jimma_head_office') and not is_ho_hr:
+                        raise Forbidden(_("Only the Head Office HR Officer can approve this loan."))
+                    elif emp_type == 'cpw' and not is_cpw_hr:
+                        raise Forbidden(_("Only the CPW HR Officer can approve this loan."))
+                    elif not (is_ho_hr or is_cpw_hr):
+                        raise Forbidden(_("Only the designated HR Officer can approve this loan."))
+                elif loan.state == 'waiting_farm_manager' and not is_farm_manager:
+                    raise Forbidden(_("Only the Farm Manager can approve this loan."))
+                elif loan.state == 'waiting_gm' and not (is_gm or is_rule_approver):
+                    raise Forbidden(_("Only the General Manager (GM) or designated rule approver can approve this High Amount Loan."))
         elif mode == 'cancel':
             if not is_owner:
                 raise Forbidden(_("You can only cancel your own loan requests."))
@@ -301,14 +356,38 @@ class LoanCustomerPortal(CustomerPortal):
 
         user = request.env.user
         is_owner = employee and loan.employee_id.id == employee.id
-        is_gm = user.company_id.loan_gm_user_id.id == user.id
+        is_admin = user.has_group('base.group_system')
+        is_gm = user.company_id.loan_gm_user_id.id == user.id or is_admin
+        is_ho_hr = user.company_id.loan_ho_hr_user_id.id == user.id or is_admin
+        is_cpw_hr = user.company_id.loan_cpw_hr_user_id.id == user.id or is_admin
+        is_designated_approver = loan.designated_approver_user_id.id == user.id or is_admin
+        is_rule_approver = bool(
+            loan.approval_request_id and (
+                user.id in loan.approval_request_id.approver_ids.mapped('user_id.id') or
+                user.id in loan.approval_request_id.category_id.approver_ids.mapped('user_id.id')
+            )
+        )
         is_farm_manager = employee and (
             (loan.farm_id and loan.farm_id.manager_id.id == employee.id) or
             (loan.farm_manager_id and loan.farm_manager_id.id == employee.id) or
             (loan.employee_id.parent_id and loan.employee_id.parent_id.id == employee.id)
         )
 
-        can_approve = (loan.loan_type == 'advance_salary' and is_farm_manager) or (loan.loan_type == 'high_amount' and is_gm)
+        emp_type = getattr(loan.employee_id, 'farm_employee_type', False)
+
+        can_approve = False
+        if loan.state in ('waiting_hr', 'waiting_farm_manager', 'waiting_gm'):
+            if is_designated_approver or is_rule_approver or is_admin:
+                can_approve = True
+            elif loan.state == 'waiting_hr':
+                if emp_type in ('head_office', 'jimma_head_office') and is_ho_hr:
+                    can_approve = True
+                elif emp_type == 'cpw' and is_cpw_hr:
+                    can_approve = True
+            elif loan.state == 'waiting_farm_manager' and is_farm_manager:
+                can_approve = True
+            elif loan.state == 'waiting_gm' and (is_gm or is_rule_approver):
+                can_approve = True
 
         values = {
             'page_name': 'loan_detail',
@@ -316,6 +395,8 @@ class LoanCustomerPortal(CustomerPortal):
             'employee': employee,
             'is_owner': is_owner,
             'is_gm': is_gm,
+            'is_ho_hr': is_ho_hr,
+            'is_cpw_hr': is_cpw_hr,
             'is_farm_manager': is_farm_manager,
             'can_approve': can_approve,
             'submitted': bool(submitted),
@@ -368,7 +449,7 @@ class LoanCustomerPortal(CustomerPortal):
             'pending': {'label': _('Pending My Approval'), 'domain': []},
             'advance_salary': {'label': _('Advance Salary Loans'), 'domain': [('loan_type', '=', 'advance_salary')]},
             'high_amount': {'label': _('High Amount Loans'), 'domain': [('loan_type', '=', 'high_amount')]},
-            'all': {'label': _('All Approvals History'), 'domain': [('state', 'in', ['approved', 'rejected', 'waiting_farm_manager', 'waiting_gm'])]},
+            'all': {'label': _('All Approvals History'), 'domain': [('state', 'in', ['approved', 'rejected', 'waiting_farm_manager', 'waiting_hr', 'waiting_gm'])]},
         }
         if not filterby or filterby not in filters:
             filterby = 'pending'
@@ -413,10 +494,12 @@ class LoanCustomerPortal(CustomerPortal):
     def portal_my_loan_approve(self, loan_id, redirect_to=None, **kw):
         loan = self._check_loan_access(loan_id, mode='approve')
         try:
-            if loan.loan_type == 'advance_salary':
-                loan.action_portal_farm_manager_approve()
-            else:
+            if loan.state == 'waiting_hr':
+                loan.action_portal_hr_approve()
+            elif loan.state == 'waiting_gm':
                 loan.action_portal_gm_approve()
+            else:
+                loan.action_portal_farm_manager_approve()
         except Exception as e:
             return request.redirect(f'/my/loans/{loan_id}?error={str(e)}')
 

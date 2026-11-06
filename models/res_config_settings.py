@@ -23,6 +23,18 @@ class ResCompany(models.Model):
         domain="[('share', '=', False)]",
         help="Finance Manager who receives automatic email confirmation for loan disbursement."
     )
+    loan_ho_hr_user_id = fields.Many2one(
+        'res.users',
+        string="Head Office HR Officer",
+        domain="[('share', '=', False)]",
+        help="Designated HR Officer responsible for approving 1-Month Advance Salary Loans for Head Office employees."
+    )
+    loan_cpw_hr_user_id = fields.Many2one(
+        'res.users',
+        string="CPW HR Officer",
+        domain="[('share', '=', False)]",
+        help="Designated HR Officer responsible for approving 1-Month Advance Salary Loans for CPW employees."
+    )
     loan_advance_category_id = fields.Many2one(
         'approval.category',
         string="Advance Salary Approval Category"
@@ -39,6 +51,16 @@ class ResConfigSettings(models.TransientModel):
     loan_gm_user_id = fields.Many2one(
         related='company_id.loan_gm_user_id',
         string="General Manager (GM)",
+        readonly=False
+    )
+    loan_ho_hr_user_id = fields.Many2one(
+        related='company_id.loan_ho_hr_user_id',
+        string="Head Office HR Officer",
+        readonly=False
+    )
+    loan_cpw_hr_user_id = fields.Many2one(
+        related='company_id.loan_cpw_hr_user_id',
+        string="CPW HR Officer",
         readonly=False
     )
     loan_hr_manager_id = fields.Many2one(

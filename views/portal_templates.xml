@@ -263,6 +263,9 @@
                                                     <t t-elif="l.state == 'waiting_farm_manager'">
                                                         <span class="badge rounded-pill bg-warning text-dark px-3 py-1">Waiting Farm Manager</span>
                                                     </t>
+                                                    <t t-elif="l.state == 'waiting_hr'">
+                                                        <span class="badge rounded-pill bg-info text-dark px-3 py-1">Waiting HR Officer</span>
+                                                    </t>
                                                     <t t-elif="l.state == 'waiting_gm'">
                                                         <span class="badge rounded-pill bg-warning text-dark px-3 py-1">Waiting GM Approval</span>
                                                     </t>
@@ -659,6 +662,9 @@
                                 <t t-elif="loan.state == 'waiting_farm_manager'">
                                     <span class="badge bg-warning text-dark fs-6 px-3 py-2">Waiting Farm Manager</span>
                                 </t>
+                                <t t-elif="loan.state == 'waiting_hr'">
+                                    <span class="badge bg-info text-dark fs-6 px-3 py-2">Waiting HR Approval</span>
+                                </t>
                                 <t t-elif="loan.state == 'waiting_gm'">
                                     <span class="badge bg-warning text-dark fs-6 px-3 py-2">Waiting GM Approval</span>
                                 </t>
@@ -678,13 +684,14 @@
                                         <div class="step-counter"><i class="fa fa-check"/></div>
                                         <div class="step-name">Submitted</div>
                                     </div>
-                                    <div t-attf-class="stepper-item {{ 'completed' if loan.state == 'approved' else ('active' if loan.state in ('waiting_farm_manager', 'waiting_gm') else '') }}">
+                                    <div t-attf-class="stepper-item {{ 'completed' if loan.state == 'approved' else ('active' if loan.state in ('waiting_farm_manager', 'waiting_hr', 'waiting_gm') else '') }}">
                                         <div class="step-counter">
                                             <i t-if="loan.state == 'approved'" class="fa fa-check"/>
                                             <span t-else="">2</span>
                                         </div>
                                         <div class="step-name">
-                                            <t t-if="loan.loan_type == 'advance_salary'">Farm Manager Review</t>
+                                            <t t-if="loan.state == 'waiting_hr'">HR Officer Review</t>
+                                            <t t-elif="loan.state == 'waiting_farm_manager'">Farm Manager Review</t>
                                             <t t-else="">GM Authorization</t>
                                         </div>
                                     </div>
@@ -776,7 +783,7 @@
 
                                 <div class="d-flex gap-2">
                                     <!-- Employee Cancel Option -->
-                                    <t t-if="is_owner and loan.state in ('draft', 'waiting_farm_manager', 'waiting_gm')">
+                                    <t t-if="is_owner and loan.state in ('draft', 'waiting_farm_manager', 'waiting_hr', 'waiting_gm')">
                                         <form t-attf-action="/my/loans/{{ loan.id }}/cancel" method="post">
                                             <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                             <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Are you sure you want to cancel this loan request?');">
@@ -786,7 +793,7 @@
                                     </t>
 
                                     <!-- Approver Quick Actions -->
-                                    <t t-if="can_approve and loan.state in ('waiting_farm_manager', 'waiting_gm')">
+                                    <t t-if="can_approve and loan.state in ('waiting_farm_manager', 'waiting_hr', 'waiting_gm')">
                                         <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" t-attf-data-bs-target="#loanRejectModal{{ loan.id }}">
                                             <i class="fa fa-times me-1"/> Reject
                                         </button>
@@ -1032,7 +1039,7 @@
                                                     <t t-if="req.state == 'approved'">
                                                         <span class="badge rounded-pill bg-success px-3 py-1">Approved</span>
                                                     </t>
-                                                    <t t-elif="req.state in ('waiting_farm_manager', 'waiting_gm')">
+                                                    <t t-elif="req.state in ('waiting_farm_manager', 'waiting_hr', 'waiting_gm')">
                                                         <span class="badge rounded-pill bg-warning text-dark px-3 py-1">Pending Authorization</span>
                                                     </t>
                                                     <t t-elif="req.state == 'rejected'">
@@ -1049,7 +1056,7 @@
                                                         </a>
 
                                                         <!-- Quick Approve & Reject Buttons -->
-                                                        <t t-if="req.state in ('waiting_farm_manager', 'waiting_gm')">
+                                                        <t t-if="req.state in ('waiting_farm_manager', 'waiting_hr', 'waiting_gm')">
                                                             <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" t-attf-data-bs-target="#teamLoanRejectModal{{ req.id }}" title="Reject">
                                                                 <i class="fa fa-times"/>
                                                             </button>

@@ -11,12 +11,13 @@
                     <button name="action_submit" string="Submit" type="object" class="oe_highlight" invisible="state != 'draft'"/>
                     
                     <button name="action_portal_farm_manager_approve" string="Farm Manager Approve" type="object" class="oe_highlight" invisible="state != 'waiting_farm_manager'"/>
-                    <button name="action_portal_gm_approve" string="GM Approve" type="object" class="oe_highlight" invisible="state != 'waiting_gm'"/>
+                    <button name="action_portal_hr_approve" string="HR Officer Approve" type="object" class="oe_highlight" invisible="state != 'waiting_hr'"/>
+                    <button name="action_portal_gm_approve" string="GM / Approver Approve" type="object" class="oe_highlight" invisible="state != 'waiting_gm'"/>
                     
-                    <button name="action_portal_reject" string="Reject" type="object" class="btn-danger" invisible="state not in ('waiting_farm_manager', 'waiting_gm')"/>
-                    <button name="action_portal_cancel" string="Cancel" type="object" invisible="state not in ('draft', 'waiting_farm_manager', 'waiting_gm')"/>
+                    <button name="action_portal_reject" string="Reject" type="object" class="btn-danger" invisible="state not in ('waiting_farm_manager', 'waiting_hr', 'waiting_gm')"/>
+                    <button name="action_portal_cancel" string="Cancel" type="object" invisible="state not in ('draft', 'waiting_farm_manager', 'waiting_hr', 'waiting_gm')"/>
 
-                    <field name="state" widget="statusbar" statusbar_visible="draft,waiting_farm_manager,waiting_gm,approved,paid"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,waiting_farm_manager,waiting_hr,waiting_gm,approved,paid"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
@@ -49,8 +50,8 @@
                             <field name="currency_id" invisible="1"/>
                             <field name="payment_date"/>
                             <field name="ethiopian_payment_date" readonly="1"/>
-                            <label for="eth_month_loan" string="Pick in Ethiopian (በኢትዮጵያ የቀን መቁጠሪያ)" invisible="state not in ('draft', 'waiting_farm_manager', 'waiting_gm')"/>
-                            <div class="o_row" invisible="state not in ('draft', 'waiting_farm_manager', 'waiting_gm')">
+                            <label for="eth_month_loan" string="Pick in Ethiopian (በኢትዮጵያ የቀን መቁጠሪያ)" invisible="state not in ('draft', 'waiting_farm_manager', 'waiting_hr', 'waiting_gm')"/>
+                            <div class="o_row" invisible="state not in ('draft', 'waiting_farm_manager', 'waiting_hr', 'waiting_gm')">
                                 <field name="eth_month_loan" placeholder="ወር (Month)" class="oe_inline"/>
                                 <field name="eth_day_loan" placeholder="ቀን (Day)" class="oe_inline" style="width: 80px;"/>
                                 <field name="eth_year_loan" placeholder="ዓመት (Year)" class="oe_inline" style="width: 90px;"/>
@@ -91,7 +92,7 @@
         <field name="name">hr.loan.list</field>
         <field name="model">hr.loan</field>
         <field name="arch" type="xml">
-            <list string="Employee Loans" decoration-info="state in ('waiting_farm_manager', 'waiting_gm')" decoration-success="state == 'approved'" decoration-danger="state == 'rejected'" decoration-muted="state == 'cancelled'">
+            <list string="Employee Loans" decoration-info="state in ('waiting_farm_manager', 'waiting_hr', 'waiting_gm')" decoration-success="state == 'approved'" decoration-danger="state == 'rejected'" decoration-muted="state == 'cancelled'">
                 <field name="name"/>
                 <field name="employee_id" widget="many2one_avatar_employee"/>
                 <field name="loan_type"/>
@@ -101,7 +102,7 @@
                 <field name="payment_date"/>
                 <field name="ethiopian_payment_date" optional="show"/>
                 <field name="farm_id"/>
-                <field name="state" widget="badge" decoration-info="state in ('waiting_farm_manager', 'waiting_gm')" decoration-success="state == 'approved'" decoration-danger="state == 'rejected'"/>
+                <field name="state" widget="badge" decoration-info="state in ('waiting_farm_manager', 'waiting_hr', 'waiting_gm')" decoration-success="state == 'approved'" decoration-danger="state == 'rejected'"/>
                 <field name="company_id" groups="base.group_multi_company" optional="hide"/>
             </list>
         </field>
@@ -116,7 +117,7 @@
                 <field name="name"/>
                 <field name="employee_id"/>
                 <field name="farm_id"/>
-                <filter name="pending" string="Pending Approvals" domain="[('state', 'in', ['waiting_farm_manager', 'waiting_gm'])]"/>
+                <filter name="pending" string="Pending Approvals" domain="[('state', 'in', ['waiting_farm_manager', 'waiting_hr', 'waiting_gm'])]"/>
                 <filter name="advance_salary" string="Advance Salary Loans" domain="[('loan_type', '=', 'advance_salary')]"/>
                 <filter name="high_amount" string="High Amount Loans" domain="[('loan_type', '=', 'high_amount')]"/>
                 <filter name="approved" string="Approved" domain="[('state', '=', 'approved')]"/>

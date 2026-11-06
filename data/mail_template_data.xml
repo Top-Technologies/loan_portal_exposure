@@ -36,6 +36,39 @@
             </field>
         </record>
 
+        <!-- 1b. Notification to HR Officer on Advance Salary Submission -->
+        <record id="email_template_loan_submitted_hr" model="mail.template">
+            <field name="name">Employee Loan: Advance Salary (HR Officer Notification)</field>
+            <field name="model_id" ref="model_hr_loan"/>
+            <field name="subject">New Advance Salary Loan Request: {{ object.employee_id.name }} ({{ object.name }})</field>
+            <field name="partner_to">{{ (object.designated_approver_user_id.partner_id.id or '') }}</field>
+            <field name="body_html" type="html">
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <h2 style="color: #1e293b; margin-top: 0;">Advance Salary Loan Request</h2>
+                    <p style="color: #475569;">Hello HR Officer,</p>
+                    <p style="color: #475569;">
+                        <strong><t t-out="object.employee_id.name"/></strong> has submitted a <strong>1-Month Advance Salary Loan</strong> requiring your review and approval.
+                    </p>
+                    <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #0284c7;">
+                        <p style="margin: 5px 0;"><strong>Reference:</strong> <t t-out="object.name"/></p>
+                        <p style="margin: 5px 0;"><strong>Employee:</strong> <t t-out="object.employee_id.name"/></p>
+                        <p style="margin: 5px 0;"><strong>Requested Amount:</strong> <strong style="color: #0284c7;"><t t-out="object.loan_amount"/> <t t-out="object.currency_id.symbol"/></strong></p>
+                        <t t-if="object.reason">
+                            <p style="margin: 5px 0;"><strong>Reason:</strong> <t t-out="object.reason"/></p>
+                        </t>
+                    </div>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a t-attf-href="/my/loans/{{ object.id }}" style="background-color: #0284c7; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                            Review &amp; Approve on Portal
+                        </a>
+                    </div>
+                    <p style="color: #94a3b8; font-size: 12px; margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+                        Automated notification from Employee Loans Portal.
+                    </p>
+                </div>
+            </field>
+        </record>
+
         <!-- 2. Notification to GM on High Amount Loan Submission -->
         <record id="email_template_loan_submitted_gm" model="mail.template">
             <field name="name">Employee Loan: High Amount (GM Notification)</field>

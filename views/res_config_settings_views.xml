@@ -12,6 +12,18 @@
                     <setting id="loan_gm_setting" string="General Manager (GM) for Loans" help="Designated GM responsible for authorising High Monetary Amount Loans.">
                         <field name="loan_gm_user_id" widget="many2one_avatar_user"/>
                     </setting>
+                    <setting id="loan_branch_approvers_setting" string="1-Month Loan Approvers" help="Designated HR Officers for Head Office and CPW 1-Month Salary Advance Loans (Farm employees route to their respective Farm Manager).">
+                        <div class="content-group">
+                            <div class="row mt16">
+                                <label for="loan_ho_hr_user_id" class="col-lg-4 o_light_label" string="Head Office HR Officer"/>
+                                <field name="loan_ho_hr_user_id" widget="many2one_avatar_user"/>
+                            </div>
+                            <div class="row mt8">
+                                <label for="loan_cpw_hr_user_id" class="col-lg-4 o_light_label" string="CPW HR Officer"/>
+                                <field name="loan_cpw_hr_user_id" widget="many2one_avatar_user"/>
+                            </div>
+                        </div>
+                    </setting>
                     <setting id="loan_hr_finance_setting" string="HR &amp; Finance Notification Recipients" help="HR and Finance managers who receive automated email confirmation when High Monetary Loans are authorized by the GM.">
                         <div class="content-group">
                             <div class="row mt16">

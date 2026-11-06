@@ -251,40 +251,60 @@ class ApprovalRequest(models.Model):
                 continue
 
             emp = req.employee_id or req.request_owner_id.employee_id
-            approver_user_ids = []
+            emp_type = getattr(emp, 'farm_employee_type', False) if emp else False
+            company = req.company_id or self.env.company
 
             if req.loan_type == 'advance_salary':
-                # 1. Employee's direct manager
-                if emp and emp.parent_id and emp.parent_id.user_id:
-                    approver_user_ids.append(emp.parent_id.user_id.id)
-                # 2. Employee's Farm Manager
-                farm = (emp.current_farm_id or emp.initial_farm_id) if emp else False
-                if farm and farm.manager_id and farm.manager_id.user_id:
-                    if farm.manager_id.user_id.id not in approver_user_ids:
-                        approver_user_ids.append(farm.manager_id.user_id.id)
-                # 3. Fallback to GM / Loan Admin
-                if not approver_user_ids:
-                    gm_user = req.company_id.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False)
-                    if gm_user:
-                        approver_user_ids.append(gm_user.id)
-            else:  # high_amount
-                gm_user = req.company_id.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False)
-                if gm_user:
-                    approver_user_ids.append(gm_user.id)
+                approver_user = False
+                if emp_type in ('head_office', 'jimma_head_office'):
+                    approver_user = company.loan_ho_hr_user_id or (emp.parent_id.user_id if emp and emp.parent_id else False) or company.loan_hr_manager_id
+                elif emp_type == 'cpw':
+                    approver_user = company.loan_cpw_hr_user_id or (emp.parent_id.user_id if emp and emp.parent_id else False) or company.loan_hr_manager_id
+                else:
+                    # Farm employee advance goes to Farm Manager
+                    farm = (emp.current_farm_id or emp.initial_farm_id) if emp else False
+                    if farm and farm.manager_id and farm.manager_id.user_id:
+                        approver_user = farm.manager_id.user_id
+                    elif emp:
+                        fm = emp.get_assigned_farm_manager()
+                        if fm and fm.user_id:
+                            approver_user = fm.user_id
+                    if not approver_user:
+                        approver_user = company.loan_gm_user_id or company.loan_hr_manager_id
 
-            if approver_user_ids:
-                existing_uids = req.approver_ids.mapped('user_id.id')
-                new_commands = []
-                for uid in approver_user_ids:
-                    if uid not in existing_uids:
-                        new_commands.append(fields.Command.create({
-                            'user_id': uid,
+                if not approver_user:
+                    approver_user = company.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False) or self.env.user
+
+                if approver_user:
+                    # Ensure no duplicate approver rows by resetting and setting the single designated approver
+                    req.approver_ids = [
+                        (5, 0, 0),
+                        (0, 0, {
+                            'user_id': approver_user.id,
                             'status': 'new',
                             'required': True,
                             'sequence': 10,
-                        }))
-                if new_commands:
-                    req.update({'approver_ids': new_commands})
+                        })
+                    ]
+            else:
+                # High Monetary Amount:
+                # If category rule has configured approver users, super()._compute_approver_ids()
+                # already populated them. Respect the configured rule approvers!
+                if req.category_id and req.category_id.approver_ids:
+                    continue
+                else:
+                    # If no approvers configured on the category rule, default to General Manager (GM)
+                    gm_user = company.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False) or self.env.user
+                    if gm_user:
+                        req.approver_ids = [
+                            (5, 0, 0),
+                            (0, 0, {
+                                'user_id': gm_user.id,
+                                'status': 'new',
+                                'required': True,
+                                'sequence': 10,
+                            })
+                        ]
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -336,7 +356,11 @@ class ApprovalRequest(models.Model):
             if loan:
                 loan.write(loan_vals)
             else:
-                initial_state = 'waiting_farm_manager' if req.loan_type == 'advance_salary' else 'waiting_gm'
+                emp_type = getattr(employee, 'farm_employee_type', False)
+                if req.loan_type == 'advance_salary':
+                    initial_state = 'waiting_hr' if emp_type in ('head_office', 'cpw', 'jimma_head_office') else 'waiting_farm_manager'
+                else:
+                    initial_state = 'waiting_gm'
                 loan_vals['state'] = initial_state
                 loan = HrLoan.create(loan_vals)
 
@@ -362,12 +386,15 @@ class ApprovalRequest(models.Model):
                 if not req.approver_ids:
                     fallback_user = req.company_id.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False) or self.env.user
                     req.write({
-                        'approver_ids': [fields.Command.create({
-                            'user_id': fallback_user.id,
-                            'status': 'new',
-                            'required': True,
-                            'sequence': 10,
-                        })]
+                        'approver_ids': [
+                            (5, 0, 0),
+                            (0, 0, {
+                                'user_id': fallback_user.id,
+                                'status': 'new',
+                                'required': True,
+                                'sequence': 10,
+                            })
+                        ]
                     })
 
         res = super().action_confirm()
@@ -382,8 +409,10 @@ class ApprovalRequest(models.Model):
             if req.request_status == 'approved' and req.is_loan_category:
                 if not req.loan_ids:
                     req._create_or_update_linked_loan()
-                for loan in req.loan_ids.filtered(lambda l: l.state in ['draft', 'waiting_farm_manager', 'waiting_gm']):
-                    if loan.loan_type == 'high_amount':
+                for loan in req.loan_ids.filtered(lambda l: l.state in ['draft', 'waiting_farm_manager', 'waiting_hr', 'waiting_gm']):
+                    if loan.state == 'waiting_hr':
+                        loan.action_portal_hr_approve()
+                    elif loan.state == 'waiting_gm':
                         loan.action_portal_gm_approve()
                     else:
                         loan.action_portal_farm_manager_approve()
@@ -393,7 +422,7 @@ class ApprovalRequest(models.Model):
         res = super().action_refuse(approver=approver)
         for req in self:
             if req.request_status == 'refused':
-                for loan in req.loan_ids.filtered(lambda l: l.state in ['draft', 'waiting_farm_manager', 'waiting_gm']):
+                for loan in req.loan_ids.filtered(lambda l: l.state in ['draft', 'waiting_farm_manager', 'waiting_hr', 'waiting_gm']):
                     loan.action_portal_reject(reason=_("Refused in Approvals module by %s.") % self.env.user.name)
         return res
 
@@ -411,6 +440,6 @@ class ApprovalRequest(models.Model):
     def action_cancel(self):
         res = super().action_cancel()
         for req in self:
-            for loan in req.loan_ids.filtered(lambda l: l.state in ['draft', 'waiting_farm_manager', 'waiting_gm']):
+            for loan in req.loan_ids.filtered(lambda l: l.state in ['draft', 'waiting_farm_manager', 'waiting_hr', 'waiting_gm']):
                 loan.action_portal_cancel()
         return res
