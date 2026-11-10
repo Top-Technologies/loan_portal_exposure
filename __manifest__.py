@@ -32,7 +32,7 @@ Empowers workforce employees to apply for and track employee loans directly from
         'hr',
         'mail',
         'approvals',
-        'farm_management',
+        'Farm-Management',
     ],
     'data': [
         'security/security.xml',
