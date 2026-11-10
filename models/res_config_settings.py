@@ -44,6 +44,19 @@ class ResCompany(models.Model):
         string="High Amount Loan Approval Category"
     )
 
+    @api.model
+    def _register_hook(self):
+        super()._register_hook()
+        try:
+            self.env.cr.execute("""
+                ALTER TABLE res_company
+                ADD COLUMN IF NOT EXISTS loan_ho_hr_user_id integer,
+                ADD COLUMN IF NOT EXISTS loan_cpw_hr_user_id integer;
+            """)
+        except Exception:
+            pass
+
+
 
 class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
