@@ -241,51 +241,100 @@ class HrLoan(models.Model):
                         vals['loan_amount'] = wage
         return super().create(vals_list)
 
-    def _get_loan_designated_approver_user(self):
+    @api.model
+    def _get_loan_approval_category_for_employee(self, loan_type, employee):
         """
-        Determines the designated approver user for this loan based on loan_type and employee classification:
-        - 1-Month Advance Salary:
-          - Head Office ('head_office'): Head Office HR Officer (company.loan_ho_hr_user_id)
-          - CPW ('cpw'): CPW HR Officer (company.loan_cpw_hr_user_id)
-          - Farm ('permanent', 'temporary', 'zemach'): Assigned Farm Manager (farm_manager_id.user_id)
-        - High Monetary Amount:
-          - Head Office ('head_office'): General Manager (company.loan_gm_user_id)
-          - CPW ('cpw'): General Manager (company.loan_gm_user_id)
-          - Farm ('permanent', 'temporary', 'zemach'): Assigned Farm Manager (farm_manager_id.user_id)
+        Finds the designated approval.category based on loan_type and employee classification:
+        - loan_type: 'advance_salary' (Short Term) or 'high_amount' (Long Term / High Monetary)
+        - employee: hr.employee record (classification: head_office, cpw, farm)
+        """
+        emp_type = getattr(employee, 'farm_employee_type', False) if employee else False
+        if emp_type in ('head_office', 'jimma_head_office'):
+            classification = 'head_office'
+        elif emp_type == 'cpw':
+            classification = 'cpw'
+        elif emp_type in ('permanent', 'temporary', 'zemach'):
+            classification = 'farm'
+        else:
+            classification = 'all'
+
+        ApprovalCategory = self.env['approval.category'].sudo()
+
+        # 1. Match category by explicit fields: loan_category_type and employee_classification
+        if classification != 'all':
+            cat = ApprovalCategory.search([
+                ('loan_category_type', '=', loan_type),
+                ('employee_classification', '=', classification),
+                ('active', '=', True)
+            ], limit=1)
+            if cat:
+                return cat
+
+        # 2. Match by XML ID mapping if defined
+        xml_map = {
+            ('advance_salary', 'head_office'): 'loan_portal_exposure.approval_category_advance_salary_head_office',
+            ('advance_salary', 'cpw'): 'loan_portal_exposure.approval_category_advance_salary_cpw',
+            ('advance_salary', 'farm'): 'loan_portal_exposure.approval_category_advance_salary_farm',
+            ('high_amount', 'head_office'): 'loan_portal_exposure.approval_category_high_amount_head_office',
+            ('high_amount', 'cpw'): 'loan_portal_exposure.approval_category_high_amount_cpw',
+            ('high_amount', 'farm'): 'loan_portal_exposure.approval_category_high_amount_farm',
+        }
+        ref_xml_id = xml_map.get((loan_type, classification))
+        if ref_xml_id:
+            cat = self.env.ref(ref_xml_id, raise_if_not_found=False)
+            if cat and cat.active:
+                return cat
+
+        # 3. Match by name keywords
+        kw_map = {'head_office': 'Head Office', 'cpw': 'CPW', 'farm': 'Farm'}
+        kw = kw_map.get(classification)
+        if kw:
+            type_kw = 'Advance' if loan_type == 'advance_salary' else 'High'
+            cat = ApprovalCategory.search([
+                ('name', 'ilike', type_kw),
+                ('name', 'ilike', kw),
+                ('active', '=', True)
+            ], limit=1)
+            if cat:
+                return cat
+
+        # 4. Fallback to general category for loan_type
+        cat = ApprovalCategory.search([
+            ('loan_category_type', '=', loan_type),
+            ('employee_classification', '=', 'all'),
+            ('active', '=', True)
+        ], limit=1)
+        if cat:
+            return cat
+
+        # 5. Default XML IDs
+        default_xml = 'loan_portal_exposure.approval_category_advance_salary_loan' if loan_type == 'advance_salary' else 'loan_portal_exposure.approval_category_high_amount_loan'
+        return self.env.ref(default_xml, raise_if_not_found=False)
+
+    def _get_loan_designated_approvers(self):
+        """
+        Determines the designated approver users from the Approval Category configured
+        in the Approval module for this loan's type and employee classification.
         """
         self.ensure_one()
-        emp = self.employee_id
-        emp_type = getattr(emp, 'farm_employee_type', False) if emp else False
-        company = self.company_id or self.env.company
+        category = self.approval_request_id.category_id if self.approval_request_id else False
+        if not category:
+            category = self._get_loan_approval_category_for_employee(self.loan_type, self.employee_id)
 
-        if self.loan_type == 'advance_salary':
-            if emp_type == 'head_office':
-                return company.loan_ho_hr_user_id or (emp.parent_id.user_id if emp and emp.parent_id else False) or company.loan_hr_manager_id
-            elif emp_type == 'cpw':
-                return company.loan_cpw_hr_user_id or (emp.parent_id.user_id if emp and emp.parent_id else False) or company.loan_hr_manager_id
-            else:
-                # Farm employee advance goes to Farm Manager
-                if self.farm_manager_id and self.farm_manager_id.user_id:
-                    return self.farm_manager_id.user_id
-                if emp:
-                    fm = emp.get_assigned_farm_manager()
-                    if fm and fm.user_id:
-                        return fm.user_id
-                return company.loan_gm_user_id or company.loan_hr_manager_id
-        else:
-            # High Monetary Amount:
-            # Check if the approval category rule has configured approver users
-            category = company.loan_high_amount_category_id or self.env.ref('loan_portal_exposure.approval_category_high_amount_loan', raise_if_not_found=False)
-            if not category and self.approval_request_id:
-                category = self.approval_request_id.category_id
-            if category and category.approver_ids:
-                cat_approver_users = category.approver_ids.mapped('user_id').filtered(lambda u: u.active)
-                if cat_approver_users:
-                    if company.loan_gm_user_id and company.loan_gm_user_id in cat_approver_users:
-                        return company.loan_gm_user_id
-                    return cat_approver_users[0]
-            # Default to General Manager (GM) for all employees (Head Office, CPW, Farm)
-            return company.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False)
+        if category and category.approver_ids:
+            active_users = category.approver_ids.mapped('user_id').filtered(lambda u: u.active)
+            if active_users:
+                return active_users
+
+        # Fallback if no approver configured on the approval category
+        # NEVER use immediate manager (parent_id)!
+        company = self.company_id or self.env.company
+        fallback = company.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False)
+        return fallback or self.env['res.users']
+
+    def _get_loan_designated_approver_user(self):
+        approvers = self._get_loan_designated_approvers()
+        return approvers[0] if approvers else False
 
     @api.depends('employee_id', 'loan_type', 'company_id', 'farm_id', 'farm_manager_id')
     def _compute_designated_approver_user(self):
@@ -316,6 +365,9 @@ class HrLoan(models.Model):
             # Create Approval Request in backend Approvals module if category exists
             loan._create_approval_request_record()
 
+            # Set designated approver from approval category
+            loan.designated_approver_user_id = loan._get_loan_designated_approver_user()
+
             # Notify designated approver and employee
             loan._notify_designated_approver()
             loan._send_mail_safe('loan_portal_exposure.email_template_loan_submitted_employee')
@@ -325,17 +377,15 @@ class HrLoan(models.Model):
         """ Creates a matching approval.request record in the Odoo Approvals module """
         self.ensure_one()
         ApprovalRequest = self.env['approval.request'].sudo()
-        category = False
-
-        if self.loan_type == 'advance_salary':
-            category = self.company_id.loan_advance_category_id or self.env.ref('loan_portal_exposure.approval_category_advance_salary_loan', raise_if_not_found=False)
-        else:
-            category = self.company_id.loan_high_amount_category_id or self.env.ref('loan_portal_exposure.approval_category_high_amount_loan', raise_if_not_found=False)
+        category = self._get_loan_approval_category_for_employee(self.loan_type, self.employee_id)
 
         if not category:
             category = self.env['approval.category'].sudo().search([('name', 'ilike', 'loan')], limit=1)
 
         if category:
+            if category.manager_approval:
+                category.sudo().write({'manager_approval': False})
+
             owner_user = self.employee_id.user_id or self.env.user
             req_vals = {
                 'name': f"{self.name} - {self.employee_id.name} ({dict(self._fields['loan_type'].selection).get(self.loan_type)})",
@@ -354,18 +404,26 @@ class HrLoan(models.Model):
                 for att in self.attachment_ids:
                     att.copy({'res_model': 'approval.request', 'res_id': app_req.id})
 
-            # Check if category already has configured approvers
-            if self.loan_type == 'high_amount' and category.approver_ids:
-                # Keep category approvers; ensure each is pending
-                for approver_line in app_req.approver_ids:
-                    approver_line.status = 'pending'
+            # Populate approvers strictly from the category approvers
+            approver_users = category.approver_ids.mapped('user_id').filtered(lambda u: u.active)
+            if approver_users:
+                app_req.approver_ids = [
+                    (5, 0, 0)
+                ] + [
+                    (0, 0, {
+                        'user_id': u.id,
+                        'status': 'pending',
+                        'required': True,
+                        'sequence': 10 * idx,
+                    }) for idx, u in enumerate(approver_users, 1)
+                ]
             else:
-                approver_user = self._get_loan_designated_approver_user()
-                if approver_user:
+                fallback_user = self._get_loan_designated_approver_user()
+                if fallback_user:
                     app_req.approver_ids = [
                         (5, 0, 0),
                         (0, 0, {
-                            'user_id': approver_user.id,
+                            'user_id': fallback_user.id,
                             'status': 'pending',
                             'required': True,
                             'sequence': 10,

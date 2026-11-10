@@ -17,13 +17,32 @@ ETHIOPIAN_MONTH_SELECTION = [
 class ApprovalCategory(models.Model):
     _inherit = 'approval.category'
 
+    loan_category_type = fields.Selection([
+        ('none', 'Not a Loan Category'),
+        ('advance_salary', 'Advance One Month Salary Loan (Short Term)'),
+        ('high_amount', 'High Monetary Amount Loan (Long Term)'),
+    ], string="Loan Category Type", default='none')
+
+    employee_classification = fields.Selection([
+        ('all', 'All Classifications'),
+        ('head_office', 'Head Office (ዋና መ/ቤት)'),
+        ('cpw', 'CPW'),
+        ('farm', 'Farm (የእርሻ)'),
+    ], string="Applicable Classification", default='all',
+       help="Specify which employee classification this loan approval category applies to.")
+
     def init(self):
         super().init()
         try:
             with self.env.cr.savepoint():
-                adv_cat = self.env.ref('loan_portal_exposure.approval_category_advance_salary_loan', raise_if_not_found=False)
-                if adv_cat and adv_cat.manager_approval == 'required':
-                    adv_cat.sudo().write({'manager_approval': 'approver'})
+                # Set manager_approval to NULL for all loan categories
+                # so the employee's immediate manager is NEVER automatically injected as an approver.
+                self.env.cr.execute("""
+                    UPDATE approval_category
+                    SET manager_approval = NULL
+                    WHERE (name->>'en_US' ILIKE '%loan%' OR sequence_code ILIKE 'LOAN%' OR loan_category_type != 'none')
+                      AND manager_approval IS NOT NULL;
+                """)
                 high_cat = self.env.ref('loan_portal_exposure.approval_category_high_amount_loan', raise_if_not_found=False)
                 if high_cat and high_cat.requirer_document != 'required':
                     high_cat.sudo().write({'requirer_document': 'required'})
@@ -120,22 +139,31 @@ class ApprovalRequest(models.Model):
         default=2018
     )
 
-    @api.depends('category_id')
+    @api.depends('category_id', 'category_id.loan_category_type')
     def _compute_is_loan_category(self):
-        adv_cat = self.env.ref('loan_portal_exposure.approval_category_advance_salary_loan', raise_if_not_found=False)
-        high_cat = self.env.ref('loan_portal_exposure.approval_category_high_amount_loan', raise_if_not_found=False)
         for req in self:
+            cat = req.category_id
             req.is_loan_category = bool(
-                (adv_cat and req.category_id == adv_cat) or
-                (high_cat and req.category_id == high_cat) or
-                (req.category_id and 'loan' in (req.category_id.name or '').lower())
+                cat and (
+                    cat.loan_category_type in ('advance_salary', 'high_amount') or
+                    'loan' in (cat.name or '').lower() or
+                    'advance' in (cat.name or '').lower() or
+                    (cat.sequence_code and cat.sequence_code.startswith('LOAN'))
+                )
             )
 
-    @api.depends('category_id')
+    @api.depends('category_id', 'category_id.loan_category_type')
     def _compute_loan_type(self):
-        adv_cat = self.env.ref('loan_portal_exposure.approval_category_advance_salary_loan', raise_if_not_found=False)
         for req in self:
-            if (adv_cat and req.category_id == adv_cat) or (req.category_id and 'advance' in (req.category_id.name or '').lower()):
+            cat = req.category_id
+            if cat and cat.loan_category_type == 'advance_salary':
+                req.loan_type = 'advance_salary'
+                req.installment_months = 3
+            elif cat and cat.loan_category_type == 'high_amount':
+                req.loan_type = 'high_amount'
+                if not req.installment_months or req.installment_months == 3:
+                    req.installment_months = 12
+            elif cat and ('advance' in (cat.name or '').lower() or '1-month' in (cat.name or '').lower()):
                 req.loan_type = 'advance_salary'
                 req.installment_months = 3
             else:
@@ -250,61 +278,40 @@ class ApprovalRequest(models.Model):
             if not req.is_loan_category:
                 continue
 
-            emp = req.employee_id or req.request_owner_id.employee_id
-            emp_type = getattr(emp, 'farm_employee_type', False) if emp else False
-            company = req.company_id or self.env.company
+            # Ensure manager_approval is False for loan categories so immediate manager is NEVER added
+            if req.category_id and req.category_id.manager_approval:
+                req.category_id.sudo().write({'manager_approval': False})
 
-            if req.loan_type == 'advance_salary':
-                approver_user = False
-                if emp_type in ('head_office', 'jimma_head_office'):
-                    approver_user = company.loan_ho_hr_user_id or (emp.parent_id.user_id if emp and emp.parent_id else False) or company.loan_hr_manager_id
-                elif emp_type == 'cpw':
-                    approver_user = company.loan_cpw_hr_user_id or (emp.parent_id.user_id if emp and emp.parent_id else False) or company.loan_hr_manager_id
-                else:
-                    # Farm employee advance goes to Farm Manager
-                    farm = (emp.current_farm_id or emp.initial_farm_id) if emp else False
-                    if farm and farm.manager_id and farm.manager_id.user_id:
-                        approver_user = farm.manager_id.user_id
-                    elif emp:
-                        fm = emp.get_assigned_farm_manager()
-                        if fm and fm.user_id:
-                            approver_user = fm.user_id
-                    if not approver_user:
-                        approver_user = company.loan_gm_user_id or company.loan_hr_manager_id
-
-                if not approver_user:
-                    approver_user = company.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False) or self.env.user
-
-                if approver_user:
-                    # Ensure no duplicate approver rows by resetting and setting the single designated approver
+            # Strictly respect the approver users configured on the Approval module category
+            if req.category_id and req.category_id.approver_ids:
+                cat_users = req.category_id.approver_ids.mapped('user_id').filtered(lambda u: u.active)
+                if cat_users:
                     req.approver_ids = [
-                        (5, 0, 0),
+                        (5, 0, 0)
+                    ] + [
                         (0, 0, {
-                            'user_id': approver_user.id,
+                            'user_id': u.id,
                             'status': 'new',
                             'required': True,
-                            'sequence': 10,
-                        })
+                            'sequence': 10 * idx,
+                        }) for idx, u in enumerate(cat_users, 1)
                     ]
-            else:
-                # High Monetary Amount:
-                # If category rule has configured approver users, super()._compute_approver_ids()
-                # already populated them. Respect the configured rule approvers!
-                if req.category_id and req.category_id.approver_ids:
                     continue
-                else:
-                    # If no approvers configured on the category rule, default to General Manager (GM)
-                    gm_user = company.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False) or self.env.user
-                    if gm_user:
-                        req.approver_ids = [
-                            (5, 0, 0),
-                            (0, 0, {
-                                'user_id': gm_user.id,
-                                'status': 'new',
-                                'required': True,
-                                'sequence': 10,
-                            })
-                        ]
+
+            # Fallback only if category has no approvers configured yet
+            # NEVER fallback to employee's immediate manager (parent_id)!
+            company = req.company_id or self.env.company
+            fallback_user = company.loan_gm_user_id or self.env.ref('base.user_admin', raise_if_not_found=False) or self.env.user
+            if fallback_user:
+                req.approver_ids = [
+                    (5, 0, 0),
+                    (0, 0, {
+                        'user_id': fallback_user.id,
+                        'status': 'new',
+                        'required': True,
+                        'sequence': 10,
+                    })
+                ]
 
     @api.model_create_multi
     def create(self, vals_list):

@@ -1,33 +1,131 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data noupdate="1">
+    <data noupdate="0">
 
-        <!-- 1. Approval Category: Advance One Month Salary Loan -->
+        <!-- 1. Approval Category: Advance One Month Salary Loan (General) -->
         <record id="approval_category_advance_salary_loan" model="approval.category">
-            <field name="name">Employee Loan - Advance 1-Month Salary</field>
+            <field name="name">Employee Loan - Advance 1-Month Salary (General)</field>
             <field name="has_amount">optional</field>
             <field name="has_date">optional</field>
             <field name="has_reference">optional</field>
             <field name="approval_minimum">1</field>
-            <field name="manager_approval">approver</field>
+            <field name="manager_approval" eval="False"/>
+            <field name="loan_category_type">advance_salary</field>
+            <field name="employee_classification">all</field>
             <field name="sequence_code">LOAN-ADV</field>
             <field name="automated_sequence">True</field>
             <field name="sequence_id" ref="sequence_approval_advance_salary"/>
-            <field name="description">Approval category for employee advance one month salary loans.</field>
+            <field name="description">Approval category for employee advance one month salary loans (all classifications fallback).</field>
         </record>
 
-        <!-- 2. Approval Category: High Monetary Amount Loan -->
+        <!-- 2. Approval Category: Advance One Month Salary Loan (Head Office) -->
+        <record id="approval_category_advance_salary_head_office" model="approval.category">
+            <field name="name">Employee Loan - Advance 1-Month Salary (Head Office)</field>
+            <field name="has_amount">optional</field>
+            <field name="has_date">optional</field>
+            <field name="has_reference">optional</field>
+            <field name="approval_minimum">1</field>
+            <field name="manager_approval" eval="False"/>
+            <field name="loan_category_type">advance_salary</field>
+            <field name="employee_classification">head_office</field>
+            <field name="sequence_code">LOAN-ADV-HO</field>
+            <field name="automated_sequence">True</field>
+            <field name="description">Approval category for Head Office employee advance one month salary loans.</field>
+        </record>
+
+        <!-- 3. Approval Category: Advance One Month Salary Loan (CPW) -->
+        <record id="approval_category_advance_salary_cpw" model="approval.category">
+            <field name="name">Employee Loan - Advance 1-Month Salary (CPW)</field>
+            <field name="has_amount">optional</field>
+            <field name="has_date">optional</field>
+            <field name="has_reference">optional</field>
+            <field name="approval_minimum">1</field>
+            <field name="manager_approval" eval="False"/>
+            <field name="loan_category_type">advance_salary</field>
+            <field name="employee_classification">cpw</field>
+            <field name="sequence_code">LOAN-ADV-CPW</field>
+            <field name="automated_sequence">True</field>
+            <field name="description">Approval category for CPW employee advance one month salary loans.</field>
+        </record>
+
+        <!-- 4. Approval Category: Advance One Month Salary Loan (Farm) -->
+        <record id="approval_category_advance_salary_farm" model="approval.category">
+            <field name="name">Employee Loan - Advance 1-Month Salary (Farm)</field>
+            <field name="has_amount">optional</field>
+            <field name="has_date">optional</field>
+            <field name="has_reference">optional</field>
+            <field name="approval_minimum">1</field>
+            <field name="manager_approval" eval="False"/>
+            <field name="loan_category_type">advance_salary</field>
+            <field name="employee_classification">farm</field>
+            <field name="sequence_code">LOAN-ADV-FM</field>
+            <field name="automated_sequence">True</field>
+            <field name="description">Approval category for Farm employee advance one month salary loans.</field>
+        </record>
+
+        <!-- 5. Approval Category: High Monetary Amount Loan (General) -->
         <record id="approval_category_high_amount_loan" model="approval.category">
-            <field name="name">Employee Loan - High Monetary Amount</field>
+            <field name="name">Employee Loan - High Monetary Amount (General)</field>
             <field name="has_amount">required</field>
             <field name="has_date">optional</field>
             <field name="has_reference">optional</field>
             <field name="requirer_document">required</field>
             <field name="approval_minimum">1</field>
+            <field name="manager_approval" eval="False"/>
+            <field name="loan_category_type">high_amount</field>
+            <field name="employee_classification">all</field>
             <field name="sequence_code">LOAN-HIGH</field>
             <field name="automated_sequence">True</field>
             <field name="sequence_id" ref="sequence_approval_high_amount"/>
-            <field name="description">Approval category for high monetary amount employee loans routed to the General Manager.</field>
+            <field name="description">Approval category for high monetary amount employee loans (all classifications fallback).</field>
+        </record>
+
+        <!-- 6. Approval Category: High Monetary Amount Loan (Head Office) -->
+        <record id="approval_category_high_amount_head_office" model="approval.category">
+            <field name="name">Employee Loan - High Monetary Amount (Head Office)</field>
+            <field name="has_amount">required</field>
+            <field name="has_date">optional</field>
+            <field name="has_reference">optional</field>
+            <field name="requirer_document">required</field>
+            <field name="approval_minimum">1</field>
+            <field name="manager_approval" eval="False"/>
+            <field name="loan_category_type">high_amount</field>
+            <field name="employee_classification">head_office</field>
+            <field name="sequence_code">LOAN-HIGH-HO</field>
+            <field name="automated_sequence">True</field>
+            <field name="description">Approval category for Head Office high monetary amount employee loans.</field>
+        </record>
+
+        <!-- 7. Approval Category: High Monetary Amount Loan (CPW) -->
+        <record id="approval_category_high_amount_cpw" model="approval.category">
+            <field name="name">Employee Loan - High Monetary Amount (CPW)</field>
+            <field name="has_amount">required</field>
+            <field name="has_date">optional</field>
+            <field name="has_reference">optional</field>
+            <field name="requirer_document">required</field>
+            <field name="approval_minimum">1</field>
+            <field name="manager_approval" eval="False"/>
+            <field name="loan_category_type">high_amount</field>
+            <field name="employee_classification">cpw</field>
+            <field name="sequence_code">LOAN-HIGH-CPW</field>
+            <field name="automated_sequence">True</field>
+            <field name="description">Approval category for CPW high monetary amount employee loans.</field>
+        </record>
+
+        <!-- 8. Approval Category: High Monetary Amount Loan (Farm) -->
+        <record id="approval_category_high_amount_farm" model="approval.category">
+            <field name="name">Employee Loan - High Monetary Amount (Farm)</field>
+            <field name="has_amount">required</field>
+            <field name="has_date">optional</field>
+            <field name="has_reference">optional</field>
+            <field name="requirer_document">required</field>
+            <field name="approval_minimum">1</field>
+            <field name="manager_approval" eval="False"/>
+            <field name="loan_category_type">high_amount</field>
+            <field name="employee_classification">farm</field>
+            <field name="sequence_code">LOAN-HIGH-FM</field>
+            <field name="automated_sequence">True</field>
+            <field name="description">Approval category for Farm high monetary amount employee loans.</field>
         </record>
 
     </data>

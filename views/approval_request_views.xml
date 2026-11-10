@@ -122,4 +122,19 @@
         </field>
     </record>
 
+    <!-- Inherit Approval Category Form View for Loans -->
+    <record id="approval_category_view_form_inherit_loan" model="ir.ui.view">
+        <field name="name">approval.category.view.form.inherit.loan</field>
+        <field name="model">approval.category</field>
+        <field name="inherit_id" ref="approvals.approval_category_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='option_settings']" position="before">
+                <group string="Loan Category Configuration" name="loan_config">
+                    <field name="loan_category_type"/>
+                    <field name="employee_classification" invisible="loan_category_type == 'none'"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
 </odoo>

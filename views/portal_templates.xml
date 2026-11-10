@@ -545,11 +545,11 @@
                                             <i class="fa fa-sitemap text-primary fa-lg"/>
                                             <div id="routing_text_advance">
                                                 <strong>Approval Route:</strong> 
-                                                <span>Farm Manager: <strong t-esc="farm_manager.name or 'Assigned Farm Manager'"/></span>
+                                                <span>Designated Approver: <strong t-esc="adv_approver_name or 'Short Term Approver (Approval Module)'"/></span>
                                             </div>
                                             <div id="routing_text_high" style="display: none;">
                                                 <strong>Approval Route:</strong> 
-                                                <span>Direct Authorization: <strong>General Manager (GM)</strong></span> &amp;rarr; <span>Notification to <strong>HR &amp; Finance Managers</strong></span>
+                                                <span>Designated Approver: <strong t-esc="high_approver_name or 'Long Term Approver (Approval Module)'"/></span> &amp;rarr; <span>Notification to <strong>HR &amp; Finance Managers</strong></span>
                                             </div>
                                         </div>
                                     </div>
@@ -835,28 +835,15 @@
                                 </h6>
                             </div>
                             <div class="card-body p-3">
-                                <t t-if="loan.loan_type == 'advance_salary'">
-                                    <div class="d-flex align-items-center gap-3">
-                                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle p-2">
-                                            <i class="fa fa-user-circle fa-lg"/>
-                                        </div>
-                                        <div>
-                                            <div class="text-muted small">Farm Manager</div>
-                                            <div class="fw-bold" t-esc="loan.farm_manager_id.name or 'Farm Manager'"/>
-                                        </div>
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="bg-primary bg-opacity-10 text-primary rounded-circle p-2">
+                                        <i class="fa fa-user-circle fa-lg"/>
                                     </div>
-                                </t>
-                                <t t-else="">
-                                    <div class="d-flex align-items-center gap-3">
-                                        <div class="bg-warning bg-opacity-10 text-warning rounded-circle p-2">
-                                            <i class="fa fa-star fa-lg"/>
-                                        </div>
-                                        <div>
-                                            <div class="text-muted small">General Manager (GM)</div>
-                                            <div class="fw-bold" t-esc="loan.company_id.loan_gm_user_id.name or 'General Manager'"/>
-                                        </div>
+                                    <div>
+                                        <div class="text-muted small">Designated Approver</div>
+                                        <div class="fw-bold" t-esc="loan.designated_approver_user_id.name or (loan.approval_request_id.approver_ids and loan.approval_request_id.approver_ids[0].user_id.name) or 'Designated Approver'"/>
                                     </div>
-                                </t>
+                                </div>
                             </div>
                         </div>
 
